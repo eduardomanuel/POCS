@@ -1,0 +1,104 @@
+<html>
+    <head>
+        <title>8 bit graphics</title>
+    </head>
+    <body>
+        <div id="gallery">
+            <canvas id="mycanvas" width="100" height="100" style="background-color: black;">
+            </canvas>
+        </div>
+       
+    </body>
+    <script lang="JavaScript">
+            
+            var canvas = document.getElementById('mycanvas');
+            var ctx = canvas.getContext('2d');
+            var magnification = 20;
+            var startX = 20;
+            var startY = 20;
+
+            function initCanvas(newCanvas) {
+                ctx = newCanvas.getContext("2d");
+                canvas = newCanvas;
+            }
+
+            function drawCell(position) {
+                var topLeft = { x: position.x - magnification/2, y: position.y - magnification/2};
+
+                ctx.fillStyle = "rgb(200, 0, 0)";
+                ctx.fillRect(topLeft.x, topLeft.y, magnification/2, magnification/2);
+
+                // console.log(topLeft);
+            }
+
+            function drawRow(bits, ypos){
+                for(var i=0; i < bits.length; i++) {
+                    if(bits[i] == "1") {
+                        var position = {
+                            x: startX + (i * magnification/2),
+                            y: ypos 
+                        }; 
+                        drawCell(position);
+                    }
+                }
+            }
+
+            function drawMap(map) {
+                var txt = document.createTextNode(JSON.stringify(map));
+                canvas.appendChild(txt);
+                ctx.clearRect(0,0,canvas.width, canvas.height);
+               // console.log(map);
+                for(var i=0; i < map.length; i++) {
+                    drawRow(map[i], startY + (i * magnification)/2);
+                }
+            }
+
+            function gen8BitRow(){
+                return Math.floor(Math.random() * 256).toString(2).split("").reverse().join("");
+            }
+
+            function gen8BitMap(){
+                var map = [];
+                for(var i=0; i<8; i++) {
+                    map.push(gen8BitRow());
+                }
+
+                return(map);
+
+            }
+
+            function genMaps(n){
+                var mapcol = [];
+                for(var i=0; i<n; i++){
+                    var nextMap = gen8BitMap();
+                    if(mapcol.includes(nextMap)) 
+                        console.log("found a dup!");
+                    mapcol.push(nextMap);
+                }
+
+                return mapcol;
+            }
+
+            function showMapCollection(mapCol){
+                for(var i = 0; i < mapCol.length; i++){
+                    initCanvas(addCanvas());
+                    drawMap(mapCol[i]);
+                   // confirm("Map " + i + "is being displayed");
+                }
+            }
+
+            function addCanvas(){
+                var newCanvas = document.createElement("canvas");
+                newCanvas.width = canvas.width;
+                newCanvas.height = canvas.height;
+                newCanvas.style = "background-color: black;";
+
+                g = document.getElementById("gallery");
+
+                g.appendChild(newCanvas);
+
+                return newCanvas;
+                
+            }
+    </script>
+</html>

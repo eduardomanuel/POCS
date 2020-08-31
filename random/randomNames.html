@@ -1,0 +1,74 @@
+<htm>
+    <head>
+        <title>random names</title>
+    </head>
+    <body>
+
+    </body>
+    <script lang="javascript">
+        var minNameLength = 5;
+        var maxNameLength = 7;
+        var vouels = "aeiou";
+        var consonants = getConsonants();
+
+        
+
+        function getConsonants(){
+            var consonants = [];
+            for(var i=0; i < 26; i++){
+                var nextLetter = String.fromCharCode(i+97);
+                if(vouels.includes(nextLetter)) continue;
+                consonants.push(nextLetter);
+            }
+
+            return consonants;
+        }
+
+
+        function isVouel(letter){
+            return vouels.includes(letter);
+        }
+
+        function isConsonant(letter){
+            return consonants.includes(letter);
+        }
+
+        function startsWithTwoConsonants(name){
+            return (isConsonant(name[0]) && isConsonant(name[1]))
+        }
+
+        function nameIsValid(name){
+            return(!startsWithTwoConsonants(name));
+        }
+
+        function isValidLetter(letter) {
+            return(isConsonant(letter) || isVouel(letter));
+        }
+
+        function genAName() {
+            var nameLength = Math.ceil(Math.random() * (maxNameLength-minNameLength) + minNameLength); // pick a leng bet min and max
+            var validName = false;
+            var theName = [];
+            
+            while(!validName) {
+                var nextLetter = String.fromCharCode(97 + Math.ceil(Math.random() * 26));
+                var currentLetter = theName[theName.length-1];
+
+                if(!isValidLetter(nextLetter)) continue;
+                if(isConsonant(currentLetter) && isConsonant(nextLetter)) continue;
+                if(currentLetter == nextLetter) continue;
+                    
+                theName.push(nextLetter);
+                
+                if(theName.length >= nameLength) {
+                    if(nameIsValid(theName)) 
+                        validName = true;
+                    else
+                        theName = [];
+                }
+            }
+            
+            return theName.join("");
+        }
+    </script>
+</htm>
