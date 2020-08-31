@@ -1,0 +1,188 @@
+<html>
+  <head>
+    <title>Game Scheleton</title>
+    <style></style>
+  </head>
+
+  <body>
+    <canvas
+      id="gameDrawingPort"
+      width="600"
+      height="400"
+      style="background-color: black;"
+    >
+    </canvas>
+    <div>
+      <fieldset>
+        <legend>Visual Ojbects</legend>
+        <button>Add visual object</button>
+      </fieldset>
+    </div>
+  </body>
+  <script lang="JavaScript">
+    (function() {
+
+        var view = {
+
+            drawBoundaryBox : function(position, size) {
+                var ctx = gameModel.gameCanvas.getContext("2d");
+
+                // select a random color
+                ctx.strokeStyle =  "rgb(255," + Math.ceil(Math.random() * 255) + "," + Math.ceil(Math.random() * 255) + ")" ;
+
+                ctx.strokeRect(position.x, position.y, size.width, size.height);
+            },
+
+            drawVisualObjects : function() {
+                for(var i=0; i < gameModel.visualObjects.length; i++) {
+                    var objectToDraw = gameModel.visualObjects[i];
+                    if(objectToDraw.animations.length > 0) {
+                        // drawAnimations
+                        console.log("drawing animations");
+                    }
+                    else {
+                       // just draw default sprite
+                       if(objectToDraw.defaultSprite != "") {
+                           // draw default sprite
+                           console.log("drawing default sprite");
+                       }
+                       else {
+                          // draw boundary box to signal object's postion
+                          // console.log("drawing boundary box");
+                          this.drawBoundaryBox(objectToDraw.position, objectToDraw.size);
+                       }
+                    }
+                }
+            }
+        };
+
+        var gameModel = {
+            gameCanvas: document.getElementById("gameDrawingPort"),
+            gameOn: true,
+            animationFrameID: "",
+            elapsedTime : 0,
+            frameCount: 0,
+            visualObjects: [],
+            newVisualObject : function() {
+                return {
+                position : {x:0, y:0},
+                size: {width : 0, height: 0},
+                defaultSprite: "",
+                visible : true,
+                animations :[],
+                phisicsBody:
+                };
+            }
+        };
+
+        var phisics = {
+            transformations : {
+                rotatePoint : function(centerPoint, pointToRotate, rotationAngle) {
+                    var angle = (rotationAngle) * (Math.PI/180); // Convert to radians
+
+                    var rotatedX = Math.cos(angle) * (pointToRotate.x - centerPoint.x) - Math.sin(angle) * (pointToRotate.y-centerPoint.y) + centerPoint.x;
+
+                    var rotatedY = Math.sin(angle) * (pointToRotate.x - centerPoint.x) + Math.cos(angle) * (pointToRotate.y - centerPoint.y) + centerPoint.y;
+
+                    return {x: rotatedX, y: rotatedY};
+                } ,
+
+                newPhisicsBody : function() {
+                    return {
+                        position : {x : 0, y: 0},
+                        forceVectors : [],
+                    }
+                },
+
+                newForceVector: function(){
+                            return {
+                                xforce: 0,
+                                yforce: 0,
+                                rotattion: 0
+                            };
+                }
+
+            }
+        };
+
+        var gameController = {
+            handleUserInput: function(e) {
+
+                switch (e.key) {
+                    case "Escape":
+                        gameModel.gameOn = false;
+                        break;
+
+                    default:
+                        console.log(e);
+                }
+            },
+
+
+            loop: function(timestamp) {
+                gameModel.frameCount++;
+               if(gameModel.elapsedTime == 0) {
+                   gameModel.elapsedTime = timestamp;
+               }
+               else if((timestamp - gameModel.elapsedTime) >= 1000) {
+                   console.log("Frame count after a second :" + gameModel.frameCount);
+                   gameModel.elapsedTime = 0;
+                   gameModel.frameCount = 0;
+                   view.drawVisualObjects();
+               }
+
+                gameModel.animationFrameID = window.requestAnimationFrame(gameController.loop);
+                try {
+                    if (!gameModel.gameOn) {
+                        window.cancelAnimationFrame(gameModel.animationFrameID);
+                        gameController.endGame();
+                        return;
+                    }
+                } catch (err) {
+                    console.log("something went wrong!", err);
+                    return;
+                }
+
+
+            },
+
+            init: function() {
+
+                console.log("here is DISH:", this);
+
+                console.log("initializing game..");
+
+
+                document.addEventListener("keydown", this.handleUserInput);
+            },
+
+            endGame: function() {
+                console.log("game is ending.. wrapping up...");
+            }
+
+        };
+
+        // create and configure visual objects -------------------------------------------------------------
+        var myObject = gameModel.newVisualObject();
+        var object2 = gameModel.newVisualObject();
+
+        object2.position.x = 200;
+        object2.position.y = 100;
+        object2.size.height = 50;
+        object2.size.width = 60;
+
+
+        myObject.position.x = 100;
+        myObject.position.y = 200;
+        myObject.size.width = 20;
+        myObject.size.height = 30;
+        gameModel.visualObjects.push(myObject);
+        gameModel.visualObjects.push(object2);
+
+        gameController.init();
+        gameModel.animationFrameID = window.requestAnimationFrame(gameController.loop);
+
+
+    })();
+  </script>
+</html>

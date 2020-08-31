@@ -1,0 +1,660 @@
+<html>
+
+<head>
+    <title>Pong</title>
+    <!--
+        <style>
+
+        </style>
+       !-->
+</head>
+
+<body>
+    <canvas id="gameCourt" width="400" height="600" style="background-color: black"></canvas>
+</body></html>
+<script lang="JavaScript">
+    (function () {
+
+        var view = {
+
+
+            updateView: function () {
+                gameModel.ctx.clearRect(0, 0, gameModel.theCourt.width, gameModel.theCourt.height);
+                this.drawNet();
+                this.drawPaddle(gameModel.cpuPaddle);
+                this.drawPaddle(gameModel.p1Paddle);
+                this.drawBall();
+            },
+
+            declareWinner: function (winner) {
+                switch (winner) {
+                    case "CPU":
+                        console.log("%cCPU has won! with a score of " + gameModel.scoreBoard.CPU, "color: green; font-size:large");
+                        break;
+
+                    case "P1":
+                        console.log("%cP1 has won! with a score of " + gameModel.scoreBoard.P1, "color: green; font-size:large");
+                        break;
+                }
+            },
+
+            displayScores: function () {
+                console.log("%cScores --> CPU:" + gameModel.scoreBoard.CPU + " P1:" + gameModel.scoreBoard.P1, "color: yellow; fornt-size: large");
+            },
+
+            drawNet: function () {
+                gameModel.ctx.fillStyle = "#e0c919";
+                gameModel.ctx.fillRect(0, gameModel.theCourt.height / 2, gameModel.theCourt.width, 1);
+            },
+
+
+            drawPaddle: function (paddleToDraw) {
+                gameModel.ctx.fillStyle = "yellow";
+                gameModel.ctx.fillRect(paddleToDraw.position.x, paddleToDraw.position.y, gameModel.paddleDimensions.width, gameModel.paddleDimensions.height);
+                gameModel.ctx.fillStyle = "black";
+                gameModel.ctx.font = "10px Arial";
+                gameModel.ctx.fillText(paddleToDraw.lable, paddleToDraw.position.x + gameModel.paddleDimensions.width / 2, paddleToDraw.position.y + gameModel.paddleDimensions.height / 2);
+            },
+
+            drawBall: function () {
+                // console.log("...drawing the ball...");
+                // console.log(gameModel.pongBall);
+                
+                
+                gameModel.ctx.fillStyle = "yellow";
+                gameModel.ctx.beginPath();
+                gameModel.ctx.arc(gameModel.pongBall.position.x, gameModel.pongBall.position.y, gameModel.pongBall.radius, 0, 2 * Math.PI, false);
+                gameModel.ctx.fill();
+                //  ctx.stroke();
+            },
+
+            displayGamePauseMessage: function () {
+                gameModel.ctx.fillStyle = "yellow";
+                gameModel.ctx.font = "12px Arial";
+                gameModel.ctx.fillText("game paused, press spacebar to resume", 0, gameModel.theCourt.height / 2);
+            }
+        };
+
+        var gameModel = {
+
+            animationTick : 10, // update game every 10 milliseconds     
+            gameOn: true,
+            animationFrameID: "",
+            elapsedTime: 0,
+
+            // ---- game specific
+            gamePaused: "true",
+            intervalID: 0,
+            playStartTime: 0,
+
+            CPU_ACCURACY: 0,
+
+            scoreBoard: {
+                P1: 0,
+                CPU: 0
+            },
+
+            InitialAccuracy: 1,
+            pointsToWin: 10,
+            theCourt: document.getElementById("gameCourt"),
+            ctx: document.getElementById("gameCourt").getContext("2d"),
+            paddleMoveStep: 20,
+            ballMoveStep: 5,
+            ballIncreasedSpeed: 0,
+
+
+        };
+        gameModel.pongBall = {
+            isMoving: false,
+            position: {
+                x: gameModel.theCourt.width / 2,
+                y: gameModel.theCourt.height / 2
+            },
+            radius: 10,
+            direction: {
+                xSpeed: 0,
+                ySpeed: 0
+            }
+        };
+
+        gameModel.ballCollision = {
+            UPPER_PADDLE: "upperPaddle",
+            LOWER_PADDLE: "lowerPaddle",
+            LEFT_WALL: "leftWall",
+            RIGHT_WALL: "rightWall"
+        };
+
+
+        gameModel.paddle = function () {
+            return {
+                position: {
+                    x: 0,
+                    y: 0
+                },
+                motionDireccion: ""
+            };
+        };
+
+        gameModel.paddleDimensions = {
+            height: gameModel.theCourt.height / 50,
+            width: gameModel.theCourt.width / 6
+        };
+
+        gameModel.p1Paddle = gameModel.paddle();
+        gameModel.cpuPaddle = gameModel.paddle();
+
+
+        var gameController = {
+
+            handleUserInput: function (e) {
+
+                gameController.handleKeyInput(e);
+            },
+
+            loop: function (timestamp) {
+
+                if (gameModel.elapsedTime == 0) {
+                    gameModel.elapsedTime = timestamp;
+                } else if ((timestamp - gameModel.elapsedTime) >= gameModel.animationTick) {
+                    // console.log("...doing something..", timestamp);
+                    gameController.updateGame();
+                    gameModel.elapsedTime = 0;
+                }
+
+                gameModel.animationFrameID = window.requestAnimationFrame(gameController.loop);
+                try {
+                    if (!gameModel.gameOn) {
+                        window.cancelAnimationFrame(gameModel.animationFrameID);
+                        return;
+                    }                   
+                } catch (err) {
+                    console.log("something went wrong!", err);
+                    return;
+                }
+
+
+            },
+
+            initPaddles: function (p1Side) {
+                if (p1Side == "U") {
+
+                    gameModel.p1Paddle.position.x = gameModel.theCourt.width / 2 - gameModel.paddleDimensions.width / 2;
+                    gameModel.p1Paddle.position.y = (gameModel.theCourt.height - gameModel.paddleDimensions.height) - 1;
+
+
+                    gameModel.cpuPaddle.position.x = gameModel.theCourt.width / 2 - gameModel.paddleDimensions.width / 2;
+                    gameModel.cpuPaddle.position.y = 1;
+                } else {
+
+                    gameModel.p1Paddle.position.x = gameModel.theCourt.width / 2 - gameModel.paddleDimensions.width / 2;
+                    gameModel.p1Paddle.position.y = 1;
+
+
+                    gameModel.cpuPaddle.position.x = gameModel.theCourt.width / 2 - gameModel.paddleDimensions.width / 2;
+                    gameModel.cpuPaddle.position.y = (gameModel.theCourt.height - gameModel.paddleDimensions.height) - 1;
+                }
+
+                gameModel.p1Paddle.lable = "human";
+                gameModel.p1Paddle.motionDireccion = undefined;
+                gameModel.cpuPaddle.lable = "cpu";
+            },
+
+            initBall: function (currentPlayer) {
+                // console.log("Reseting ball...");
+
+                gameModel.pongBall.isMoving = false;
+                gameModel.pongBall.direction.xSpeed = 0;
+                gameModel.pongBall.direction.ySpeed = gameModel.ballMoveStep;
+                gameModel.ballIncreasedSpeed = 0;
+
+                switch (currentPlayer) {
+                    case "P1":
+                        gameModel.pongBall.position.x = (gameModel.p1Paddle.position.x + gameModel.paddleDimensions.width / 2);
+                        gameModel.pongBall.position.y = gameModel.p1Paddle.position.y - gameModel.pongBall.radius;
+                        break;
+
+                    case "CPU":
+                        gameModel.pongBall.position.x = (gameModel.cpuPaddle.position.x + gameModel.paddleDimensions.width / 2);
+                        gameModel.pongBall.position.y = gameModel.cpuPaddle.position.y + gameModel.pongBall.radius + gameModel.paddleDimensions.height;
+                        break;
+
+                    default:
+                        throw "invalid player specified";
+                }
+            },
+
+            resetScores: function () {
+                gameModel.scoreBoard.CPU = 0;
+                gameModel.scoreBoard.P1 = 0;
+            },
+
+            resetAccuracy: function () {
+                gameModel.CPU_ACCURACY = gameModel.InitialAccuracy;
+            },
+
+
+
+            init: function () {
+
+                console.log("initializing game..");
+
+                this.resetScores();
+                gameModel.theCourt.focus();
+                this.initPaddles("U");
+                this.initBall("P1");
+                view.updateView();
+                view.displayScores();
+                this.resetAccuracy();
+
+                document.addEventListener("keydown", this.handleUserInput);
+            },
+
+            endGame: function () {
+                console.log("game is ending.. wrapping up...");
+            },
+
+            ballWithinPaddleLeftRightBoundaries: function (paddleToCompare) {
+                return (
+                    (paddleToCompare.position.x <= gameModel.pongBall.position.x) &&
+                    (paddleToCompare.position.x + gameModel.paddleDimensions.width >= gameModel.pongBall.position.x)
+                );
+            },
+
+            upperPaddleCollision: function () {
+                return (
+                    (gameModel.pongBall.position.y - gameModel.pongBall.radius <= gameModel.paddleDimensions.height) &&
+                    this.ballWithinPaddleLeftRightBoundaries(gameModel.cpuPaddle)
+                );
+            },
+
+            lowerPaddleCollision: function () {
+                return (
+                    (gameModel.pongBall.position.y + gameModel.pongBall.radius >= gameModel.theCourt.height - gameModel.paddleDimensions.height) &&
+                    this.ballWithinPaddleLeftRightBoundaries(gameModel.p1Paddle)
+                );
+            },
+
+            leftWallCollision: function () {
+                return (
+                    gameModel.pongBall.position.x - gameModel.pongBall.radius <= 0
+                );
+            },
+
+            rightWallCollision: function () {
+                return (
+                    gameModel.pongBall.position.x + gameModel.pongBall.radius >= gameModel.theCourt.width
+                );
+            },
+
+            checkForCollision: function () {
+
+                switch (true) {
+                    case this.upperPaddleCollision():
+                        // console.log("upper paddle collision..");
+                        return gameModel.ballCollision.UPPER_PADDLE;
+
+                    case this.lowerPaddleCollision():
+                    case this.lowerPaddleCollision():
+                        // console.log("lower paddle collision..");
+                        return gameModel.ballCollision.LOWER_PADDLE;
+
+                    case this.leftWallCollision():
+                        return gameModel.ballCollision.LEFT_WALL;
+
+                    case this.rightWallCollision():
+                        return gameModel.ballCollision.RIGHT_WALL;
+                }
+
+                return false;
+
+            },
+
+            getBounceAngle: function (hittingPaddle) {
+
+                if (hittingPaddle.motionDireccion == "right")
+                    var direccionVias = 2;
+                else
+                    var direccionVias = -2;
+
+                var distanceToPaddleEdge = gameModel.pongBall.position.x - (hittingPaddle.position.x + (gameModel.paddleDimensions.width / 2));
+                var distanceRatio = 1 - Math.abs(distanceToPaddleEdge / (gameModel.paddleDimensions.width / 2));
+
+                return direccionVias + Math.sign(distanceToPaddleEdge) * distanceRatio;
+
+            },
+            
+            
+            getTimeSinceLastScore : function() {
+                return (Date.now() - gameModel.playStartTime) / 1000;
+            },
+            
+            increaseBallSpeed : function() {
+                var timeFactor = gameController.getTimeSinceLastScore() /10;
+                
+                if(timeFactor > 1) {
+                    if(Math.abs(gameModel.pongBall.direction.ySpeed) < 30) {
+                        gameModel.pongBall.direction.ySpeed += timeFactor/100 * Math.sign(gameModel.pongBall.direction.ySpeed);    
+                    }
+                    
+                }
+            },
+
+            increaseGameSpeed: function () {
+                var timeSinceLastScored = Date.now() - gameModel.playStartTime;
+                var p1WinningProximity = gameModel.pointsToWin - gameModel.scoreBoard.P1;
+                
+                
+                switch(p1WinningProximity) {
+                    
+                    case (5):
+                       // gameModel.animationTick = 6;
+                        gameModel.CPU_ACCURACY = 25;
+                        break;
+                        
+                    case (3) :
+                       // gameModel.animationTick = 4;
+                        gameModel.CPU_ACCURACY = 35;
+                        break;
+                    
+                    case (1) :
+                       // gameModel.animationTick = 1;
+                        gameModel.CPU_ACCURACY = 100;                        
+                        break;
+                    
+                }                
+                
+                gameController.increaseBallSpeed();
+                
+                // console.log(gameModel.pongBall.direction.ySpeed);
+                // else console.log(timeSinceLastScored);
+                
+            },
+
+
+
+            adjustBallTrajectory: function (collisionType) {
+                // var timeSinceLastScored = Date.now() - gameModel.playStartTime;
+                // var increaseSpeedRatio = timeSinceLastScored / 1000000;
+
+                
+                switch (true) {
+                    case (collisionType == gameModel.ballCollision.UPPER_PADDLE):
+                        gameModel.pongBall.direction.xSpeed += gameController.getBounceAngle(gameModel.cpuPaddle);
+                        gameModel.pongBall.direction.ySpeed *= -1;
+                        break;
+
+                    case (collisionType == gameModel.ballCollision.LOWER_PADDLE):
+                        gameModel.pongBall.direction.xSpeed += gameController.getBounceAngle(gameModel.p1Paddle);
+                        gameModel.pongBall.direction.ySpeed *= -1;
+                        break;
+
+                    case (collisionType == gameModel.ballCollision.LEFT_WALL):
+                        gameModel.pongBall.position.x = gameModel.pongBall.radius;
+                        gameModel.pongBall.direction.xSpeed *= -1;
+                        break;
+
+                    case (collisionType == gameModel.ballCollision.RIGHT_WALL):
+                        gameModel.pongBall.position.x = gameModel.theCourt.width - gameModel.pongBall.radius;
+                        gameModel.pongBall.direction.xSpeed *= -1;
+                        break;
+
+                }
+
+            },
+
+            ballOutOfBounds: function () {
+                switch (true) {
+                    case ((gameModel.pongBall.position.y > gameModel.theCourt.height) && !gameController.ballWithinPaddleLeftRightBoundaries(gameModel.p1Paddle)):
+                        return "lower-bound";
+
+                    case ((gameModel.pongBall.position.y < 0) && !gameController.ballWithinPaddleLeftRightBoundaries(gameModel.cpuPaddle)):
+                        return "upper-bound";
+                }
+            },
+
+            handleOutOfBounds: function (side) {
+
+                if (side) {
+                    switch (side) {
+                        case "lower-bound":
+                            gameController.score("CPU");
+                            break;
+
+                        case "upper-bound":
+                            gameController.score("P1");
+                            break;
+                    }
+                    gameController.initBall("P1");
+                    gameController.pauseGame();
+                }
+            },
+            
+        
+
+            increaseCpuAccuracy: function () {
+                if(gameModel.CPU_ACCURACY < 100)
+                    gameModel.CPU_ACCURACY += 10;
+            },
+            
+
+
+
+            score: function (player) {
+                switch (player) {
+                    case "CPU":
+                        if (++gameModel.scoreBoard.CPU >= gameModel.pointsToWin) {
+                            view.declareWinner("CPU");
+                            gameController.initGame();
+                        }
+
+                        break;
+
+                    case "P1":
+                        if (++gameModel.scoreBoard.P1 >= gameModel.pointsToWin) {
+                            view.declareWinner("P1");
+                            gameController.initGame();
+                        } 
+                        break;
+                }
+                gameModel.playStartTime = 0;                
+                view.displayScores();
+            },
+
+            updateBall: function () {
+                if (gameModel.pongBall.isMoving) {
+                    this.adjustBallTrajectory(this.checkForCollision());
+                    gameModel.pongBall.position.x += (gameModel.pongBall.direction.xSpeed * gameModel.pongBall.position.x / Math.abs(gameModel.pongBall.position.x));
+                    gameModel.pongBall.position.y += (gameModel.pongBall.direction.ySpeed * gameModel.pongBall.position.y / Math.abs(gameModel.pongBall.position.y));
+                    this.handleOutOfBounds(this.ballOutOfBounds());
+                }
+            },
+
+
+            adjustPaddleDireccion: function (paddleToCompare) {
+                var positionDelta = (gameModel.pongBall.position.x - (paddleToCompare.position.x + gameModel.paddleDimensions.width / 2));
+                if (positionDelta < 0)
+                    this.movePaddleLeft(paddleToCompare);
+                else if (paddleToCompare.position.x + gameModel.paddleDimensions.width <gameModel.pongBall.position.x)
+                    this.movePaddleRight(paddleToCompare);
+            },
+
+            cpuShouldMove: function () {
+                var randNumber = Math.floor(Math.random() * 100) + 1;
+                return ((randNumber > (100 - gameModel.CPU_ACCURACY)) && (gameModel.pongBall.isMoving) );
+            },
+
+            updateCPUPaddle: function () {
+                if (this.cpuShouldMove())
+                    this.adjustPaddleDireccion(gameModel.cpuPaddle);
+                // else
+                // console.log("cpu should not move!! :-(");
+            },
+
+            updateGame: function () {
+                if (!gameModel.playStartTime) {
+                    gameModel.playStartTime = Date.now();
+                }
+                gameController.increaseGameSpeed();
+                gameController.updateBall();
+                gameController.updateCPUPaddle();
+                view.updateView();
+            },
+
+            serveBall: function () {
+                console.log("ball serverd!...")
+                gameModel.pongBall.direction.ySpeed = gameModel.ballMoveStep;
+                gameModel.pongBall.isMoving = true;
+                gameModel.playStartTime = 0;
+            },
+
+            needToServe: function () {
+                return (gameModel.gamePaused && !gameModel.pongBall.isMoving);
+            },
+
+            pauseGame: function () {                
+                gameModel.gamePaused = true;
+                view.displayGamePauseMessage();
+                console.log("Game is paused!");
+            },
+
+            resumeGame: function () {
+                if (this.needToServe())
+                    this.serveBall();
+                gameModel.gamePaused = false;                
+                console.log("Game is resumed");
+
+            },
+
+               initGame : function() {
+              // console.log("initializing...");   
+               
+               this.resetScores();
+               gameModel.theCourt.focus();              
+               this.initPaddles("U");
+               this.initBall("P1");
+               view.updateView();  
+               view.displayScores();
+           },
+
+            terminateGame: function () {
+                
+                console.log("Game terminated....");
+                gameModel.gameOn = false;
+                
+            },
+
+            toggleGamePlay: function () {
+                if (gameModel.gamePaused) {
+                    this.resumeGame();
+                } else {
+                    this.pauseGame();
+                }
+            },
+
+
+            handleKeyInput: function (e) {
+                switch (e.key) {
+                    case "ArrowLeft":
+                        this.movePaddleLeft(gameModel.p1Paddle);
+                        break;
+
+                    case "ArrowRight":
+                        this.movePaddleRight(gameModel.p1Paddle);
+                        break;
+
+                    case " ":
+                        this.toggleGamePlay();
+                        break;
+
+                    case "Escape":
+                        this.pauseGame();
+                        if (confirm("Are you sure you would like to end the game?")) {
+                            gameController.terminateGame();
+                        } else {
+                            resumeGame();
+                        }
+                        break;
+
+                    default:
+                        console.log(e);
+                }
+                view.updateView();
+            },
+
+            moveBallLeft: function (moveStep) {               
+                if (moveStep) {
+                    gameModel.pongBall.position.x -= moveStep;
+                } else {
+                    gameModel.pongBall.position.x -= gameModel.pongBall.direction.xSpeed;
+                }
+            },
+
+
+            moveBallRight: function (moveStep) {
+                if (moveStep) {
+                    gameModel.pongBall.position.x += moveStep;
+                } else {
+                    gameModel.pongBall.position.x += gameModel.pongBall.direction.xSpeed;
+                }
+            },
+
+
+            moveBallUp: function (moveStep) {
+                if (moveStep) {
+                    gameModel.pongBall.position.y -= moveStep;
+                } else {
+                    gameModel.pongBall.position.y -= pongBall.direction.ySpeed;
+                }
+            },
+
+            moveBallDown: function (moveStep) {
+                if (moveStep) {
+                    gameModel.pongBall.position.y += moveStep;
+                } else {
+                    gameModel.pongBall.position.y += pongBall.direction.ySpeed;
+                }
+            },
+            
+           
+
+
+            movePaddleLeft: function (paddleToMove) {
+                if ((paddleToMove.position.x - gameModel.paddleMoveStep) > 0) {
+                    paddleToMove.position.x -= gameModel.paddleMoveStep;
+                   
+                } else {
+                    paddleToMove.position.x = 0;
+                }
+                
+                if (!gameModel.pongBall.isMoving) {                        
+                        gameController.initBall("P1");
+                }
+                
+                paddleToMove.motionDireccion = "left";
+
+            },
+
+            movePaddleRight: function (paddleToMove) {
+                if ((paddleToMove.position.x + gameModel.paddleDimensions.width + gameModel.paddleMoveStep) < gameModel.theCourt.width) {
+                    paddleToMove.position.x += gameModel.paddleMoveStep;
+                    
+                } else {
+                    paddleToMove.position.x = gameModel.theCourt.width - gameModel.paddleDimensions.width;
+                }
+                
+                if (!gameModel.pongBall.isMoving) {
+                        gameController.initBall("P1");
+                }
+
+                paddleToMove.motionDireccion = "right";
+            }
+
+
+        };
+
+        gameController.init();
+        gameModel.animationFrameID = window.requestAnimationFrame(gameController.loop);
+        
+
+    })();
+</script>

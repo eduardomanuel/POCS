@@ -1,0 +1,90 @@
+<html>
+
+<head>
+    <title>Game Scheleton</title>
+    <style>
+    </style>
+</head>
+
+<body>
+    <canvas id="gameDrawingPort" width="600" height="400" style="background-color: black">
+    </canvas>
+</body>
+<script lang="JavaScript">
+    (function() {
+
+        var view = {};
+
+        var gameModel = {
+            gameCanvas: document.getElementById("gameDrawingPort"),
+            gameOn: true,
+            animationFrameID: "",
+            elapsedTime : 0,
+            frameCount: 0,
+            visualObjects: [{
+                position : { x:0, y:0},                
+            }]        
+        };
+
+        var gameController = {
+            handleUserInput: function(e) {
+
+                switch (e.key) {
+                    case "Escape":
+                        gameModel.gameOn = false;
+                        break;
+
+                    default:
+                        console.log(e);
+                }
+            },          
+            
+            
+            loop: function(timestamp) {         
+                gameModel.frameCount++;
+               if(gameModel.elapsedTime == 0) {
+                   gameModel.elapsedTime = timestamp;
+               }
+               else if((timestamp - gameModel.elapsedTime) >= 1000) {
+                   console.log("Frame count after a second :" + gameModel.frameCount);
+                   gameModel.elapsedTime = 0;
+                   gameModel.frameCount = 0;
+               }
+                                               
+                gameModel.animationFrameID = window.requestAnimationFrame(gameController.loop);
+                try {
+                    if (!gameModel.gameOn) {
+                        window.cancelAnimationFrame(gameModel.animationFrameID);
+                        gameController.endGame();
+                        return;
+                    }
+                } catch (err) {
+                    console.log("something went wrong!", err);
+                    return;
+                }
+
+
+            },
+
+            init: function() {
+
+                console.log("here is DISH:", this);
+
+                console.log("initializing game..");
+
+
+                document.addEventListener("keydown", this.handleUserInput);
+            },
+
+            endGame: function() {
+                console.log("game is ending.. wrapping up...");
+            }
+
+        };
+
+        gameController.init();
+        gameModel.animationFrameID = window.requestAnimationFrame(gameController.loop);
+        
+
+    })();
+</script></html>

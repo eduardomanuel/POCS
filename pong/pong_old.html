@@ -1,0 +1,545 @@
+<html>
+    <head>
+        <title>Pong</title>
+       <!--
+        <style>
+             
+        </style>
+       !-->
+    </head>    
+    <body onload="initGame()">
+        <canvas id="gameCourt" width="400" height="600" style="background-color: black">
+        </canvas>
+    </body>
+     <script lang="JavaScript">
+           
+            var gamePaused = "true";
+            var intervalID = 0;
+            var playStartTime = 0;
+
+            var CPU_ACCURACY = 5;
+         
+            var scoreBoard = {
+                P1:0,
+                CPU:0
+            };
+         
+            const pointsToWin = 10;
+            const theCourt = document.getElementById("gameCourt");             
+            const ctx = theCourt.getContext("2d");
+            const paddleMoveStep = 20;
+            const ballMoveStep = 5;
+            const pongBall = { 
+                isMoving : false,
+                position : {
+                    x: theCourt.width/2,
+                    y: theCourt.height/2
+                },
+                radius : 10,
+                direction : {
+                    xSpeed:0,
+                    ySpeed:0
+                }
+            };
+         
+            const ballCollision = {
+                UPPER_PADDLE : "upperPaddle",
+                LOWER_PADDLE : "lowerPaddle",
+                LEFT_WALL : "leftWall",
+                RIGHT_WALL: "rightWall"
+            };
+         
+            document.addEventListener("keydown", handleKeyInput);     
+         
+            const paddleDimensions = {
+                height : theCourt.height/50,
+                width: theCourt.width/6
+            };    
+         
+         
+         
+            function paddle() {
+                return {
+                    position : {
+                        x: 0,
+                        y: 0
+                    },
+                    motionDireccion: ""
+                };
+            }
+         
+            
+               
+           var p1Paddle, cpuPaddle;
+           
+            
+           function drawNet() {
+               ctx.fillStyle = "#e0c919";               
+               ctx.fillRect(0, theCourt.height/2, theCourt.width, 1);
+           }
+            
+            
+            function initPaddles(p1Side){
+                if(p1Side == "U") {
+                    p1Paddle = paddle();
+                    p1Paddle.position.x = theCourt.width/2 - paddleDimensions.width/2;
+                    p1Paddle.position.y = (theCourt.height - paddleDimensions.height) - 1;
+                    
+                    cpuPaddle = paddle();
+                    cpuPaddle.position.x = theCourt.width/2 - paddleDimensions.width/2;
+                    cpuPaddle.position.y = 1;
+                }
+                else {
+                    p1Paddle = paddle();
+                    p1Paddle.position.x = theCourt.width/2 - paddleDimensions.width/2;
+                    p1Paddle.position.y = 1;
+                    
+                    cpuPaddle = paddle();
+                    cpuPaddle.position.x = theCourt.width/2 - paddleDimensions.width/2;
+                    cpuPaddle.position.y = (theCourt.height - paddleDimensions.height) - 1;
+                }
+                
+                p1Paddle.lable = "human";
+                p1Paddle.motionDireccion = undefined;
+                cpuPaddle.lable = "cpu";
+            }
+         
+           function initBall(currentPlayer) {
+                // console.log("Reseting ball...");
+              
+                pongBall.isMoving = false;
+                pongBall.direction.xSpeed = 0;
+               
+                switch(currentPlayer) {
+                    case "P1":
+                        pongBall.position.x = (p1Paddle.position.x + paddleDimensions.width/2);
+                        pongBall.position.y = p1Paddle.position.y - pongBall.radius; 
+                        break;
+                    
+                    case "CPU":
+                        pongBall.position.x = (cpuPaddle.position.x + paddleDimensions.width/2);
+                        pongBall.position.y = cpuPaddle.position.y + pongBall.radius + paddleDimensions.height; 
+                        break;
+                    
+                    default:
+                        throw "invalid player specified";
+                }
+           }    
+            
+           function resetScores() {
+               scoreBoard.CPU = 0;
+               scoreBoard.P1 = 0;
+           }
+         
+           function initGame() {
+              // console.log("initializing...");   
+               
+               resetScores();
+               theCourt.focus();              
+               initPaddles("U");
+               initBall("P1");
+               updateView();  
+               displayScores();
+           }
+         
+           function drawPaddle(paddleToDraw) {
+               ctx.fillStyle = "yellow";
+               ctx.fillRect(paddleToDraw.position.x, paddleToDraw.position.y, paddleDimensions.width, paddleDimensions.height);
+               ctx.fillStyle = "black";
+               ctx.font = "10px Arial";
+               ctx.fillText(paddleToDraw.lable, paddleToDraw.position.x + paddleDimensions.width/2 , paddleToDraw.position.y + paddleDimensions.height/2);
+           }
+         
+           function drawBall() {
+            //   console.log("...drawing the ball...");
+               // console.log(pongBall);
+               ctx.fillStyle = "yellow";
+               ctx.beginPath();
+               ctx.arc(pongBall.position.x, pongBall.position.y, pongBall.radius, 0, 2 * Math.PI, false);
+               ctx.fill();
+             //  ctx.stroke();
+           }    
+         
+           function displayGamePauseMessage(){
+               ctx.fillStyle = "yellow";
+               ctx.font = "12px Arial";
+               ctx.fillText("game paused, press spacebar to resume", 0, theCourt.height/2 );
+           }
+          
+          
+         
+           function ballWithinPaddleLeftRightBoundaries(paddleToCompare){
+               return (
+                    (paddleToCompare.position.x <= pongBall.position.x) && 
+                    (paddleToCompare.position.x + paddleDimensions.width >= pongBall.position.x ) 
+               );
+           }
+         
+           function upperPaddleCollision() {                
+                return (  
+                    (pongBall.position.y - pongBall.radius <= paddleDimensions.height) &&
+                    ballWithinPaddleLeftRightBoundaries(cpuPaddle)
+                );
+           }
+         
+           function lowerPaddleCollision() {
+                return (
+                    (pongBall.position.y + pongBall.radius >= theCourt.height - paddleDimensions.height) &&
+                    ballWithinPaddleLeftRightBoundaries(p1Paddle)
+                );
+           }
+         
+           function leftWallCollision(){
+               return (
+                   pongBall.position.x - pongBall.radius <= 0
+               );
+           }
+         
+           function rightWallCollision() {
+               return (
+                   pongBall.position.x + pongBall.radius >= theCourt.width
+               );
+           }
+         
+           function checkForCollision(){
+               
+              switch(true) {
+                  case upperPaddleCollision():
+                      // console.log("upper paddle collision..");
+                      return ballCollision.UPPER_PADDLE;
+                  
+                  case lowerPaddleCollision():
+                      // console.log("lower paddle collision..");
+                      return ballCollision.LOWER_PADDLE;
+                  
+                  case leftWallCollision():
+                      return ballCollision.LEFT_WALL;
+                      
+                  case rightWallCollision():
+                      return ballCollision.RIGHT_WALL;
+              }
+              
+              return false;               
+                    
+           }
+          
+            function getBounceAngle(hittingPaddle){
+                
+                if(hittingPaddle.motionDireccion == "right") 
+                   var direccionVias = 2;
+                else
+                   var direccionVias = -2;
+                    
+                var distanceToPaddleEdge = pongBall.position.x - (hittingPaddle.position.x + (paddleDimensions.width/2));
+                var distanceRatio = 1 - Math.abs(distanceToPaddleEdge/(paddleDimensions.width/2));
+                
+                return direccionVias + Math.sign(distanceToPaddleEdge) * distanceRatio;
+                    
+            }   
+         
+            function increaseGameSpeed(speedRatio){
+                pongBall.direction.xSpeed += (speedRatio * Math.sign(pongBall.direction.xSpeed));
+                pongBall.direction.ySpeed += (speedRatio * Math.sign(pongBall.direction.ySpeed))*1.5;
+            }         
+         
+            function adjustBallTrajectory(collisionType){
+                var timeSinceLastScored = Date.now() - playStartTime;
+                var increaseSpeedRatio = timeSinceLastScored / 1000000;
+                
+                increaseGameSpeed(increaseSpeedRatio);
+                switch(true) {
+                    case (collisionType == ballCollision.UPPER_PADDLE):
+                        pongBall.direction.xSpeed += getBounceAngle(cpuPaddle); 
+                        pongBall.direction.ySpeed *= -1; 
+                        break;
+                    
+                    case (collisionType == ballCollision.LOWER_PADDLE):
+                        pongBall.direction.xSpeed += getBounceAngle(p1Paddle); 
+                        pongBall.direction.ySpeed *= -1;
+                        break;
+                    
+                    case (collisionType == ballCollision.LEFT_WALL):
+                        pongBall.position.x = pongBall.radius;
+                        pongBall.direction.xSpeed *= -1;
+                        break;
+                        
+                    case (collisionType == ballCollision.RIGHT_WALL):
+                        pongBall.position.x = theCourt.width - pongBall.radius;
+                        pongBall.direction.xSpeed *= -1;
+                        break;
+                        
+                }
+                
+            }
+         
+            function ballOutOfBounds() {
+                switch(true) {
+                    case ((pongBall.position.y > theCourt.height) && !ballWithinPaddleLeftRightBoundaries(p1Paddle)):
+                        return "lower-bound";
+                    
+                    case ((pongBall.position.y < 0) && !ballWithinPaddleLeftRightBoundaries(cpuPaddle)):
+                        return "upper-bound";
+                }
+            } 
+         
+            function displayScores() {
+                console.log("%cScores --> CPU:"+ scoreBoard.CPU + " P1:" + scoreBoard.P1, "color: yellow; fornt-size: large");
+            }
+         
+            function handleOutOfBounds(side){
+                
+                if(side) {
+                    switch(side) {
+                        case "lower-bound":
+                            score("CPU");
+                            break;
+                    
+                        case "upper-bound":
+                            score("P1");
+                            break;
+                    }                    
+                    initBall("P1");  
+                    pauseGame();
+                }
+            }     
+            
+            function resetCpuAccuracy(){
+                if(CPU_ACCURACY < 100) {
+                    CPU_ACCURACY += scoreBoard.P1 * 5;
+                }
+               // console.log("CPU accuracy increased to :", CPU_ACCURACY);
+            }
+         
+         
+            function declareWinner(winner){
+                switch(winner) {
+                    case "CPU":
+                        console.log("%cCPU has won! with a score of " + scoreBoard.CPU,  "color: green; font-size:large");
+                        break;
+                    
+                    case "P1":
+                        console.log("%cP1 has won! with a score of " + scoreBoard.P1,  "color: green; font-size:large");
+                        break; 
+                }
+            }
+            function score(player) {
+                switch(player) {
+                    case "CPU":
+                        if(++scoreBoard.CPU >= pointsToWin) {
+                            declareWinner("CPU");
+                            initGame();
+                        }
+                            
+                        break;
+                    
+                    case "P1":
+                        if(++scoreBoard.P1 >= pointsToWin) {
+                            declareWinner("P1");
+                            initGame();
+                        }
+                        else
+                            resetCpuAccuracy();
+                        break;
+                }
+                playStartTime = 0;
+                displayScores();
+                
+                
+            }
+            
+            function updateBall(){
+                if(pongBall.isMoving) {                   
+                    adjustBallTrajectory(checkForCollision());
+                    pongBall.position.x += (pongBall.direction.xSpeed * pongBall.position.x/Math.abs(pongBall.position.x));    
+                    pongBall.position.y += (pongBall.direction.ySpeed * pongBall.position.y/Math.abs(pongBall.position.y));
+                    handleOutOfBounds(ballOutOfBounds());
+                }                
+           }
+           
+         
+           function adjustPaddleDireccion(paddleToCompare){
+                var positionDelta = (pongBall.position.x - (paddleToCompare.position.x + paddleDimensions.width/2));
+                if(positionDelta < 0)
+                    movePaddleLeft(paddleToCompare);
+                else if( paddleToCompare.position.x + paddleDimensions.width < pongBall.position.x)
+                    movePaddleRight(paddleToCompare);
+           }
+         
+           function cpuShouldMove() {
+               var randNumber = Math.floor(Math.random() * 100) + 1;
+               return(randNumber > (100 - CPU_ACCURACY));
+           }
+
+           function updateCPUPaddle() {
+               if(cpuShouldMove())
+                  adjustPaddleDireccion(cpuPaddle);
+              // else
+                  // console.log("cpu should not move!! :-(");
+           }
+         
+           function updateGame() {
+              if(!playStartTime) {
+                  playStartTime = Date.now();
+              }
+              updateBall();
+              updateCPUPaddle();
+              updateView();
+                 
+           }
+         
+           function serveBall() {            
+               console.log("ball serverd!...")
+               pongBall.direction.ySpeed = ballMoveStep;
+               pongBall.isMoving = true;
+           }
+         
+           function needToServe() {
+                return (gamePaused && !pongBall.isMoving);       
+           }
+         
+           function pauseGame(){
+               
+               clearInterval(intervalID);
+               gamePaused = true;
+               displayGamePauseMessage();               
+               console.log("Game is paused!");
+           }
+         
+           function resumeGame() {
+               if(needToServe())
+                   serveBall();               
+               gamePaused = false;               
+               intervalID = window.setInterval(updateGame, 40);
+               console.log("Game is resumed");
+               
+           }
+         
+           function terminateGame() {
+                clearInterval(intervalID);
+                console.log("Game terminated....");
+                initGame();
+           }
+         
+           function toggleGamePlay() {
+              if(gamePaused) {
+                  resumeGame();
+              }
+              else {                  
+                  pauseGame();
+              }
+           }
+           function handleKeyInput(e) {
+               switch(e.key) {
+                   case "ArrowLeft":
+                       movePaddleLeft(p1Paddle);
+                       break;
+                   
+                   case "ArrowRight":
+                       movePaddleRight(p1Paddle);
+                       break;
+                   
+                   case " ":
+                       toggleGamePlay();
+                       break;
+                       
+                   case "Escape":
+                       pauseGame();
+                       if(confirm("Are you sure you would like to end the game?")) {
+                          terminateGame();
+                       }
+                       else {
+                           resumeGame();
+                       }
+                       break;
+                       
+                   default:
+                       console.log(e);
+               }
+               updateView();
+           }
+         
+           function moveBallLeft(moveStep) {
+               if(moveStep){
+                   pongBall.position.x -= moveStep;
+               }
+               else {
+                   pongBall.position.x -= pongBall.direction.xSpeed;
+               }
+           }
+         
+         
+           function moveBallRight(moveStep) {
+               if(moveStep){
+                   pongBall.position.x += moveStep;
+               }
+               else {
+                   pongBall.position.x += pongBall.direction.xSpeed;
+               }
+           }
+         
+         
+           function moveBallUp(moveStep) {
+               if(moveStep) {
+                   pongBall.position.y -= moveStep;
+               }
+               else {
+                   pongBall.position.y -= pongBall.direction.ySpeed;
+               }
+           }
+         
+           function moveBallDown(moveStep) {
+               if(moveStep) {
+                   pongBall.position.y += moveStep;
+               }
+               else {
+                   pongBall.position.y += pongBall.direction.ySpeed;
+               }
+           }    
+             
+         
+           function movePaddleLeft(paddleToMove) {
+               if( (paddleToMove.position.x - paddleMoveStep) > 0) {
+                   paddleToMove.position.x -= paddleMoveStep;
+                   
+                    if(!pongBall.isMoving) {
+                        moveBallLeft(paddleMoveStep);
+                    }
+               }
+               else {
+                   paddleToMove.position.x = 0;
+               }
+               
+               paddleToMove.motionDireccion ="left";
+               
+           }
+         
+           function movePaddleRight(paddleToMove) {
+               if( (paddleToMove.position.x + paddleDimensions.width + paddleMoveStep) < theCourt.width) {
+                   paddleToMove.position.x += paddleMoveStep;
+                   
+                    if(!pongBall.isMoving) {
+                        moveBallRight(paddleMoveStep);
+                    }
+               }
+               else {
+                   paddleToMove.position.x = theCourt.width - paddleDimensions.width;
+               }
+               
+               paddleToMove.motionDireccion = "right";
+           }
+         
+           function updateView() {
+               ctx.clearRect(0,0,theCourt.width, theCourt.height);
+               drawNet();
+               drawPaddle(cpuPaddle);
+               drawPaddle(p1Paddle);
+               drawBall();
+           }    
+           
+         
+               
+         
+              
+        
+        </script>
+</html>
