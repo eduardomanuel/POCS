@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Plane Simulation with HUD and Terrain</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #333;
+            font-family: 'Courier New', monospace;
+        }
+        #myCanvas {
+            display: block;
+            border: 2px solid #00ff00; /* Green border for the canvas */
+            margin-top: 30px; /* Adjusted margin to prevent overlap */
+        }
+        #hud {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #00ff00; /* Green color for LCD effect */
+            background-color: #000;
+            padding: 10px;
+            border: 2px solid #00ff00; /* Green border for LCD effect */
+            border-radius: 5px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        #instructions {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            color: white;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="myCanvas" width="800" height="600"></canvas>
+<div id="hud"></div>
+<div id="instructions">
+    <strong>Controls:</strong><br>
+    <span style="color: #00ff00;">W</span> - Accelerate<br>
+    <span style="color: #00ff00;">S</span> - Decelerate<br>
+    <span style="color: #00ff00;">A</span> - Bank Left<br>
+    <span style="color: #00ff00;">D</span> - Bank Right
+</div>
+
+<script>
+    const canvas = document.getElementById('myCanvas');
+    const ctx = canvas.getContext('2d');
+    const hud = document.getElementById('hud');
+
+    // Global constants
+    const SCALE = 5;
+    const PERSPECTIVE = 200;
+    const MAX_SPEED = 10; // Maximum speed for the plane
+    const MAX_BANK_ANGLE = 30; // Maximum banking angle in degrees
+    const TERRAIN_SPEED = 2; // Speed of the terrain movement
+
+    const plane = {
+        location: {
+            x: 0,
+            y: 0,
+            z: 0,
+        },
+        speed: 0,
+        acceleration: 0.1, // Acceleration factor
+        deceleration: 0.05, // Deceleration factor
+        size: 20,
+        bankAngle: 0,
+        bankSpeed: 2, // Speed at which the plane banks left or right
+    };
+
+    const ground = {
+        segments: 100, // Number of ground segments
+        segmentWidth: 20,
+        heights: [], // Array to store ground heights
+    };
+
+    // Initialize ground heights
+    for (let i = 0; i < ground.segments; i++) {
+        ground.heights.push(0); // Initialize heights to 0
+    }
+
+    function project(p) {
+        const x = p.location.x * SCALE / (p.location.z + PERSPECTIVE) + canvas.width / 2;
+        const y = p.location.y * SCALE / (p.location.z + PERSPECTIVE) + canvas.height / 2;
+
+        return { x, y };
+    }
+
+    function updatePlane() {
+        // Update the plane's position based on user input
+        if (keys.KeyW) {
+            plane.speed += plane.acceleration;
+            plane.speed = Math.min(plane.speed, MAX_SPEED);
+        } else if (keys.KeyS) {
+            plane.speed -= plane.deceleration;
+            plane.speed = Math.max(plane.speed, 0);
+        }
+
+        // Bank left and right
+        if (keys.KeyA) {
+            plane.bankAngle -= plane.bankSpeed;
+            plane.bankAngle = Math.max(plane.bankAngle, -MAX_BANK_ANGLE);
+        } else if (keys.KeyD) {
+            plane.bankAngle += plane.bankSpeed;
+            plane.bankAngle = Math.min(plane.bankAngle, MAX_BANK_ANGLE);
+        }
+
+        // Update plane's location based on speed and banking angle
+        plane.location.z += plane.speed;
+        plane.location.x += plane.speed * Math.sin(plane.bankAngle * (Math.PI / 180));
+        plane.location.y += plane.speed * Math.cos(plane.bankAngle * (Math.PI / 180));
+    }
+
+    function updateGround() {
+        // Move the ground in the opposite direction of the plane
+        const groundMovement = plane.speed * TERRAIN_SPEED;
+        ground.heights.unshift(ground.heights[ground.heights.length - 1]); // Duplicate the last height
+        ground.heights.pop(); // Remove the last height
+    }
+
+    function drawGround() {
+        const segmentWidth = ground.segmentWidth;
+
+        for (let i = 0; i < ground.segments; i++) {
+            const x = i * segmentWidth;
+            const y = canvas.height - ground.heights[i];
+
+            ctx.fillStyle = '#654321'; // Brown color for ground
+            ctx.fillRect(x, y, segmentWidth, ground.heights[i]);
+        }
+    }
+
+    function drawPlane() {
+        const projected = project(plane);
+
+        ctx.save();
+        ctx.translate(projected.x, projected.y);
+        ctx.rotate(plane.bankAngle * (Math.PI / 180));
+
+        ctx.fillStyle = '#00ff00'; /* Green color for plane */
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(-plane.size / 2, plane.size);
+        ctx.lineTo(plane.size / 2, plane.size);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.restore();
+    }
+
+    function updateHUD() {
+        hud.innerHTML = `Position: x=${plane.location.x.toFixed(2)}, y=${plane.location.y.toFixed(2)}, z=${plane.location.z.toFixed(2)}<br>Speed: ${plane.speed.toFixed(2)}<br>Bank Angle: ${plane.bankAngle.toFixed(2)} degrees`;
+    }
+
+    // Keyboard input handling
+    const keys = {};
+    window.addEventListener('keydown', (e) => keys[e.code] = true);
+    window.addEventListener('keyup', (e) => keys[e.code] = false);
+
+    function render() {
+        // Clear the canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Update and render the ground
+        updateGround();
+        drawGround();
+
+        // Update and render the plane
+        updatePlane();
+        drawPlane();
+
+        // Update and render the HUD
+        updateHUD();
+
+        requestAnimationFrame(render);
+    }
+
+    // Start the rendering loop
+    render();
+</script>
+
+</body>
+</html>
