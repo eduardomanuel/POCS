@@ -5,11 +5,14 @@ const MAX_COL_COUNT = 100000;
 const MAX_TRAIN_RANGE = 10;
 const MAX_TRAIN_CAPACITY = 5;
 const SIM_STEP_TIME = 100;
-const MAX_STATIONS = 500;
-const MAX_TRAVELERS = 20;
+const MAX_STATIONS = 5;
+const MAX_TRAVELERS = 200;
 const MAX_REPEAT_TRAIL = 5;  // Adjust as needed
 const TRAIL_LENGTH = 500;
+const MAX_TRAINS = 5;  // Set the desired maximum number of trains
 
+
+let trainList = [];
 let stationList = [];
 
 function generateUniqueId(length) {
@@ -39,7 +42,7 @@ function genStationLocation() {
             y: Math.floor(Math.random() * WORLD_WIDTH)
         };
         //console.log("collisions in getting location :", colCount++);
-        if(colCount++ >= MAX_COL_COUNT) throw "could not get location";
+        if (colCount++ >= MAX_COL_COUNT) throw "could not get location";
     } while (
         stationList.some(station => calculateDistance(newLocation, station.location) < MIN_DISTANCE_STATION)
     );
@@ -90,9 +93,20 @@ class Train {
         this.trail = [];
     }
 
+    static createTrains(numberOfTrains, startStationIDs) {
+        const trains = [];
+        for (let i = 0; i < numberOfTrains; i++) {
+            const startStationID = startStationIDs[i % startStationIDs.length];
+            const train = new Train(startStationID);
+            trains.push(train);
+        }
+        return trains;
+    }
+
+
     updateTrail(station) {
         // Shift the elements in the trail to make space for the new station
-        if(this.trail.length >= TRAIL_LENGTH) 
+        if (this.trail.length >= TRAIL_LENGTH)
             this.trail.shift();
         // Add the current station to the end of the trail
         this.trail.push(station);
@@ -123,19 +137,19 @@ class Train {
 
         function findRepeatablePattern(trail) {
             const repeatableEntries = [];
-        
-            for(let i=0; i < trail.length; i++){
+
+            for (let i = 0; i < trail.length; i++) {
                 let next = trail[i];
-                if(trail.filter(e => e == next).length >= MAX_REPEAT_TRAIL) repeatableEntries.push(next);
+                if (trail.filter(e => e == next).length >= MAX_REPEAT_TRAIL) repeatableEntries.push(next);
             }
-           
-            for(let i=0; i < repeatableEntries.length; i++){
+
+            for (let i = 0; i < repeatableEntries.length; i++) {
                 let nextEntry = repeatableEntries[i];
                 let indexes = getAllIndexes(trail, nextEntry);
-                if(!isArithmeticSequence(indexes)) continue;  //skip if is not a repeatable pattern 
+                if (!isArithmeticSequence(indexes)) continue;  //skip if is not a repeatable pattern 
                 let pattern = trail.slice(indexes[0], indexes[1]);
                 let occurrences = countOccurrences(pattern, trail);
-                if(occurrences >= MAX_REPEAT_TRAIL) {
+                if (occurrences >= MAX_REPEAT_TRAIL) {
                     console.log(`\n\n\n  **** Loop detected !\n
                     repeated station :${nextEntry}\n 
                     pattern found:${pattern}\n
@@ -144,7 +158,7 @@ class Train {
                 }
             }
 
-        
+
             return false;
         }
 
@@ -152,15 +166,15 @@ class Train {
             if (arr.length < 2) {
                 return true;  // An empty or single-element array is considered an arithmetic sequence
             }
-        
+
             const commonDifference = arr[1] - arr[0];
-        
+
             for (let i = 1; i < arr.length - 1; i++) {
                 if (arr[i + 1] - arr[i] !== commonDifference) {
                     return false;
                 }
             }
-        
+
             return true;
         }
 
@@ -221,9 +235,11 @@ class Train {
             this.stopSimulation();
         }
         if (this.loopInTrail(this.trail)) {
-            console.error("\n\n\n\ We have fallen into a loop!");
-            console.log(JSON.stringify(this.trail));
-            this.stopSimulation();
+            let nextStation = pickRandomStation();
+            console.error("\n\n\n\ *******  We have fallen into a loop! Sending train to ", nextStation.id);
+            this.updateCurrentStation(nextStation.id);
+            // console.log(JSON.stringify(this.trail));
+            // this.stopSimulation();
         }
     }
 
@@ -235,7 +251,8 @@ class Train {
             return;
         }
         else {
-            console.log(`${thisStation.travelers.length} Travelers are waiting at this station`);
+            console.log(`${thisStation.travelers.length} Travelers are waiting at this station. \n
+            this train has capacity for ${this.capacity - this.travelers.length} additional travelers`);
         }
 
         if (!thisStation) {
@@ -255,7 +272,7 @@ class Train {
                 break;  // no more travelers at this station
             }
         }
-        if(thisStation.travelers.length > 0) {
+        if (thisStation.travelers.length > 0) {
             console.log(`Train has filled up.  ${thisStation.travelers.length} will have to wait for the next train`);
         }
     }
@@ -264,7 +281,7 @@ class Train {
     deBoardTrain() {
         const currentStation = stationList.find(station => station.id === this.currentStation);
 
-        console.log('\nTrain is at station :', currentStation.id);
+        console.log(`\nTrain [${this.id}] is at station :`, currentStation.id);
 
         if (currentStation) {
             // Filter travelers whose destination is the current station
@@ -438,13 +455,19 @@ function pickStartStation() {
     }
 }
 
+function pickRandomStation(){
+    return stationList[Math.floor(Math.random() * (stationList.length -1))];
+}
 
-// Example usage:
-const numberOfStationsToGenerate = MAX_STATIONS;
-stationList = genStations(numberOfStationsToGenerate);
 
-assignTravelersToStations(genTravelers(MAX_TRAVELERS));
+function startMultipleTrainSimulations(numberOfTrains) {
+    stationList = genStations(MAX_STATIONS);
+    assignTravelersToStations(genTravelers(MAX_TRAVELERS));
 
-const initialStation = pickStartStation();
-const train = new Train(initialStation);
-train.startSimulation();
+    const startStationIDs = Array.from({ length: numberOfTrains }, () => pickStartStation());
+    trainList = Train.createTrains(numberOfTrains, startStationIDs);
+
+    trainList.forEach(train => train.startSimulation());
+}
+
+startMultipleTrainSimulations(MAX_TRAINS);
