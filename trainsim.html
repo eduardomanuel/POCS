@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Train Simulation Visualization</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 10px;
+            display: block;
+            flex-direction: column;
+            /* Updated to column layout */
+            align-items: center;
+            justify-content: center;
+        }
+
+        #trainCanvas {
+            display: block;
+            margin-top: 10px;
+            /* Ensure it's set to block or inline-block */
+            width: 400;
+            height: 400;
+            position: relative;
+            border-style: solid;
+            border-color: black;
+        }
+
+
+
+        #legend {
+            text-align: left;
+            border: 1px solid #ccc;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 10px;
+            /* Add margin at the bottom to separate legend and form */
+        }
+
+        .legend-title {
+            font-weight: bold;
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+
+        .legend-item {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border: 1px solid black;
+            margin-right: 5px;
+        }
+
+        .train-legend {
+            background-color: red;
+        }
+
+        .station-legend {
+            background-color: blue;
+        }
+
+        .legend-text {
+            margin: 0;
+        }
+
+        #configFormContainer {
+            max-width: 400px;
+            /* Set a maximum width for the form container */
+            border: 1px solid #ccc;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        #configForm label {
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+
+        #configForm input {
+            width: calc(100% - 12px);
+            /* Adjust the width as needed */
+            padding: 6px;
+            box-sizing: border-box;
+            margin-bottom: 12px;
+        }
+
+        #configForm button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        #configForm button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="trainCanvas" id="" width="400" height="400"></canvas>
+    <table>
+        <tr>
+            <td>
+                <div id="legend">
+                    <p class="legend-title">Legend</p>
+                    <p>
+                        <span class="legend-item train-legend"></span>
+                        <span class="legend-text">Train</span>
+                    </p>
+                    <p>
+                        <span class="legend-item station-legend" style="background-color: blue;"></span>
+                        <span class="legend-text">Station (with travelers)</span>
+                    </p>
+                    <p>
+                        <span class="legend-item station-legend" style="background-color: green;"></span>
+                        <span class="legend-text">Station (no travelers)</span>
+                    </p>
+                </div>
+            </td>
+            <td>
+
+                <div id="configFormContainer">
+                    <form id="configForm">
+                        <label for="worldLength">World Length:
+                            <input type="number" id="worldLength" value="600">
+                        </label>
+
+                        <label for="worldWidth">World Width:
+                            <input type="number" id="worldWidth" value="800">
+                        </label>
+
+                        <label for="minDistanceStation">Min Distance:
+                            <input type="number" id="minDistanceStation" value="50">
+                        </label>
+
+                        <label for="maxColCount">Max Collisions:
+                            <input type="number" id="maxColCount" value="1000000">
+                        </label>
+
+                        <label for="maxTrainRange">Max Range:
+                            <input type="number" id="maxTrainRange" value="10">
+                        </label>
+
+                        <label for="maxTrainCapacity">Max Capacity:
+                            <input type="number" id="maxTrainCapacity" value="5">
+                        </label>
+
+                        <label for="simStepTime">Sim Step Time:
+                            <input type="number" id="simStepTime" value="200">
+                        </label>
+
+                        <label for="maxStations">Max Stations:
+                            <input type="number" id="maxStations" value="25">
+                        </label>
+
+                        <label for="maxTravelers">Max Travelers:
+                            <input type="number" id="maxTravelers" value="100">
+                        </label>
+
+                        <label for="maxRepeatTrail">Max Repeat Trail:
+                            <input type="number" id="maxRepeatTrail" value="5">
+                        </label>
+
+                        <label for="trailLength">Trail Length:
+                            <input type="number" id="trailLength" value="500">
+                        </label>
+
+                        <label for="maxTrains">Trains to add:
+                            <input type="number" id="maxTrains" value="2">
+                        </label>
+
+                        <button type="button" onclick="updateConstants()">Restart Simulation</button>
+                    </form>
+                </div>
+
+            </td>
+        </tr>
+    </table>
+
+
+
+    <script>
+        // Your train simulation code goes here
+
+        let WORLD_LENGTH = 400;
+        let WORLD_WIDTH = 600;
+        let MIN_DISTANCE_STATION = 50;
+        let MAX_COL_COUNT = 100000;
+        let MAX_TRAIN_RANGE = 10;
+        let MAX_TRAIN_CAPACITY = 5;
+        let SIM_STEP_TIME = 100;
+        let MAX_STATIONS = 50;
+        let MAX_TRAVELERS = 200;
+        let MAX_REPEAT_TRAIL = 5;  // Adjust as needed
+        let TRAIL_LENGTH = 500;
+        let MAX_TRAINS = 1;  // Set the desired maximum number of trains
+        let WORLD_MARGIN = 20;
+
+
+        let trainList = [];
+        let stationList = [];
+        const canvasColor = "#FFFFFF";
+        let simStartTime = 0;
+        let simElapsedTime = 0;
+
+
+        function generateUniqueId(length) {
+            const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            let uniqueId = '';
+
+            for (let i = 0; i < length; i++) {
+                const randomIndex = Math.floor(Math.random() * characters.length);
+                uniqueId += characters.charAt(randomIndex);
+            }
+
+            return uniqueId;
+        }
+
+        function calculateDistance(location1, location2) {
+            const dx = location1.x - location2.x;
+            const dy = location1.y - location2.y;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        function genStationLocation() {
+            let newLocation;
+            let colCount = 0;
+            do {
+                newLocation = {
+                    x: getRandomInt(WORLD_MARGIN, WORLD_WIDTH - WORLD_MARGIN),
+                    y: getRandomInt(WORLD_MARGIN, WORLD_LENGTH - WORLD_MARGIN)
+                };
+                //console.log("collisions in getting location :", colCount++);
+                if (colCount++ >= MAX_COL_COUNT) {
+                    console.log("unable to get a location.  station list below...");
+                    console.log(stationList);
+                    throw "could not get location";
+                }
+            } while (
+                stationList.some(station => calculateDistance(newLocation, station.location) < MIN_DISTANCE_STATION)
+            );
+
+            return newLocation;
+        }
+
+        function genTravelers(count) {
+            let travelers = [];
+            while (travelers.length < count) {
+                let newTraveler = {
+                    id: generateUniqueId(12),
+                    start: stationList[Math.floor(Math.random() * (stationList.length - 1))].id,
+                    destination: stationList[Math.floor(Math.random() * (stationList.length - 1))].id
+                }
+                travelers.push(newTraveler);
+            }
+            return travelers;
+        }
+
+        function assignTravelersToStations(travelers) {
+            travelers.forEach(traveler => {
+                const startStation = stationList.find(station => station.id === traveler.start);
+
+                if (startStation) {
+                    startStation.addTraveler(traveler);
+                } else {
+                    console.error(`Could not find station with ID ${traveler.start} for traveler ${traveler.id}`);
+                }
+            });
+        }
+
+
+
+        function noMoreTravelers() {
+            const totalTravelers = stationList.reduce((total, station) => total + station.travelers.length, 0);
+            return (totalTravelers === 0);
+        }
+
+
+        class Train {
+            constructor(startLocationID) {
+                console.log(`\n\n\nSim starting with station :${JSON.stringify(stationList.find(s => s.id == startLocationID))}`);
+
+                this.currentStation = startLocationID;
+                this.id = generateUniqueId(6);
+                this.range = Math.floor(Math.random() * MAX_TRAIN_RANGE);
+                this.capacity = MAX_TRAIN_CAPACITY;
+                this.travelers = [];
+                this.trail = [];
+            }
+
+            static createTrains(numberOfTrains, startStationIDs) {
+                const trains = [];
+
+                for (let i = 0; i < numberOfTrains; i++) {
+                    const startStationID = startStationIDs[i % startStationIDs.length];
+
+                    // Use the getTrainColor function to ensure unique colors
+                    const trainColor = getTrainColor(trains);
+
+                    const train = new Train(startStationID);
+                    train.color = trainColor;
+                    trains.push(train);
+                }
+                return trains;
+            }
+
+
+
+            updateTrail(station) {
+                // Shift the elements in the trail to make space for the new station
+                if (this.trail.length >= TRAIL_LENGTH)
+                    this.trail.shift();
+                // Add the current station to the end of the trail
+                this.trail.push(station);
+            }
+
+            findNearestStationWithPassengers() {
+                const currentStation = stationList.find(station => station.id === this.currentStation);
+                if (!currentStation) {
+                    console.error(`Invalid station: ${this.currentStation}`);
+                    return null;
+                }
+
+                const nearestStation = stationList.reduce((nearest, station) => {
+                    if (station.id !== this.currentStation && station.travelers.length > 0) {
+                        const distanceToStation = calculateDistance(currentStation.location, station.location);
+                        if (distanceToStation < nearest.distance) {
+                            return { station: station.id, distance: distanceToStation };
+                        }
+                    }
+                    return nearest;
+                }, { station: null, distance: Number.MAX_VALUE });
+
+                return nearestStation.station;
+            }
+
+
+            loopInTrail(trail) {
+
+                function findRepeatablePattern(trail) {
+                    const repeatableEntries = [];
+
+                    for (let i = 0; i < trail.length; i++) {
+                        let next = trail[i];
+                        if (trail.filter(e => e == next).length >= MAX_REPEAT_TRAIL) repeatableEntries.push(next);
+                    }
+
+                    for (let i = 0; i < repeatableEntries.length; i++) {
+                        let nextEntry = repeatableEntries[i];
+                        let indexes = getAllIndexes(trail, nextEntry);
+                        if (!isArithmeticSequence(indexes)) continue;  //skip if is not a repeatable pattern 
+                        let pattern = trail.slice(indexes[0], indexes[1]);
+                        let occurrences = countOccurrences(pattern, trail);
+                        if (occurrences >= MAX_REPEAT_TRAIL) {
+                            console.log(`\n\n\n  **** Loop detected !\n
+                    repeated station :${nextEntry}\n 
+                    pattern found:${pattern}\n
+                    Indexes :${JSON.stringify(indexes)}`);
+                            return true;
+                        }
+                    }
+
+
+                    return false;
+                }
+
+                function isArithmeticSequence(arr) {
+                    if (arr.length < 2) {
+                        return false;  // An empty or single-element array is considered an arithmetic sequence
+                    }
+
+
+                    const commonDifference = arr[1] - arr[0];
+                    // console.log(`commonDifference :${commonDifference}`);
+                    // console.log("Indexes :", JSON.stringify(arr));
+
+                    for (let i = 1; i < arr.length - 1; i++) {
+                        if (arr[i + 1] - arr[i] !== commonDifference) {
+                            return false;
+                        }
+                    }
+
+                    return true;
+                }
+
+                function countOccurrences(p, list) {
+                    // Iterate through the list to count occurrences
+                    let count = 0;
+                    for (let i = 0; i < list.length; i++) {
+                        // Check if the current position in the list matches the pattern p
+                        if (JSON.stringify(list.slice(i, i + p.length)) === JSON.stringify(p)) {
+                            count++;
+                        }
+                    }
+                    return count;
+                }
+
+                // Function to get all indexes of a specific value in an array
+                function getAllIndexes(arr, val) {
+                    const indexes = [];
+                    for (let i = 0; i < arr.length; i++) {
+                        if (JSON.stringify(arr[i]) === JSON.stringify(val)) {
+                            indexes.push(i);
+                        }
+                    }
+                    return indexes;
+                }
+
+
+                // Check for repeatable pattern in the trail
+                const hasRepeatablePattern = findRepeatablePattern(trail);
+
+                // If a repeatable pattern is found, return true; otherwise, return false
+                return hasRepeatablePattern;
+            }
+
+
+
+
+            startSimulation() {
+                this.simulationInterval = setInterval(() => {
+                    // Call your simulation steps here
+                    this.simulationStep();
+                }, SIM_STEP_TIME);
+            }
+
+            stopSimulation() {
+                console.log("\n\nEnding sim...");
+                clearInterval(this.simulationInterval);
+            }
+
+            simulationStep() {
+                this.deBoardTrain();
+                this.boardTravelers();
+                this.advance();
+                if (noMoreTravelers() && this.travelers.length === 0) {
+                    console.log("\n\nAll travelers have reached their destinations!");
+                    console.log("\n\nSee trail below");
+                    console.log(this.trail);
+                    this.stopSimulation();
+                    if (trainList.filter(t => t.travelers.length > 0).length == 0) {
+                        simElapsedTime = Date.now() - simStartTime;
+                        console.log("Sim elapsed time (seconds) :", simElapsedTime / 1000);
+                        drawTrails();
+                    }
+
+                }
+                if (this.loopInTrail(this.trail)) {
+                    let nextStation = pickRandomStation();
+                    console.error("\n\n\n\ *******  We have fallen into a loop! Sending train to ", nextStation.id);
+                    this.capacity++;
+                    console.log("Increased the train capacity to " + this.capacity);
+                    this.updateCurrentStation(nextStation.id);
+                    this.trail.length = 0;
+                    // console.log(JSON.stringify(this.trail));
+                    // this.stopSimulation();
+                }
+                drawSimulation();
+            }
+
+            boardTravelers() {
+                const thisStation = stationList.find(s => s.id == this.currentStation);
+
+                if (thisStation.travelers.length == 0) {
+                    console.log("No passengers at this station");
+                    return;
+                }
+                else {
+                    console.log(`${thisStation.travelers.length} Travelers are waiting at this station. \n
+            this train has capacity for ${this.capacity - this.travelers.length} additional travelers`);
+                }
+
+                if (!thisStation) {
+                    throw `Invalid station: ${this.currentStation}`;
+                }
+
+                while (this.travelers.length < this.capacity) {
+                    if (thisStation.travelers.length > 0) {
+                        const randomIndex = Math.floor(Math.random() * thisStation.travelers.length);
+                        const randomTraveler = thisStation.travelers[randomIndex];
+
+                        // Use the removeTraveler method of TrainStation to remove the traveler
+                        thisStation.removeTraveler(randomTraveler);
+
+                        this.travelers.push(randomTraveler);
+                    } else {
+                        break;  // no more travelers at this station
+                    }
+                }
+                if (thisStation.travelers.length > 0) {
+                    console.log(`Train has filled up.  ${thisStation.travelers.length} will have to wait for the next train`);
+                }
+            }
+
+
+            deBoardTrain() {
+                const currentStation = stationList.find(station => station.id === this.currentStation);
+
+                console.log(`\nTrain [${this.id}] is at station :`, currentStation.id);
+
+                if (currentStation) {
+                    // Filter travelers whose destination is the current station
+                    let travelersToDeboard = this.travelers.filter(traveler => traveler.destination === this.currentStation);
+                    let passengersGettingOff = travelersToDeboard.length;
+                    while (travelersToDeboard.length > 0) {
+                        let nextTraveler = travelersToDeboard.pop();
+
+                        currentStation.inactiveTravelers.push(nextTraveler);
+
+                        // remove traveler from the train
+                        this.travelers = this.travelers.filter(t => t.id != nextTraveler.id);
+                        console.log(`the following traveler has deboarded the tran :${JSON.stringify(nextTraveler)}`);
+                    }
+                    console.log(`${passengersGettingOff} travelers got off at this station`);
+                } else {
+                    console.error(`Could not find station with ID ${this.currentStation} for deboarding travelers.`);
+                }
+            }
+
+
+
+            advance() {
+                if (this.travelers.length > 0) {
+                    // If there are travelers on the train, handle the situation
+                    this.handleTravelersOnTrain();
+                } else {
+                    // If there are no travelers on the train, handle the situation
+                    this.handleNoTravelersOnTrain();
+                }
+                // Update the trail with the current station
+                this.updateTrail(this.currentStation);
+            }
+
+            handleTravelersOnTrain() {
+                // Calculate the count of travelers going to each destination
+                const destinationsCount = this.calculateDestinationsCount();
+
+                // Get the most popular destination based on traveler counts
+                const mostPopularDestination = this.getMostPopularDestination(destinationsCount);
+
+                // Calculate the distance to the next station based on the most popular destination
+                const distanceToNextStation = this.calculateDistanceToNextStation(mostPopularDestination);
+
+                // Check if the distance to the next station is greater than the maximum train range
+                if (distanceToNextStation > MAX_TRAIN_RANGE) {
+                    // If so, find the nearest station to the most popular destination
+                    const nearestStation = this.findNearestStation(this.currentStation, mostPopularDestination);
+                    console.log(`going to the nearest station:${nearestStation} distance_to_next=`, distanceToNextStation);
+                    // Update the current station to the nearest station
+                    this.updateCurrentStation(nearestStation);
+                } else {
+                    // If the distance to the next station is within the maximum train range, update the current station
+                    console.log("going to the station where most travelers want to go..", mostPopularDestination);
+                    this.updateCurrentStation(mostPopularDestination);
+                }
+            }
+
+            handleNoTravelersOnTrain() {
+                // Find the nearest station with passengers waiting
+                const nearestStationWithPassengers = this.findNearestStationWithPassengers();
+
+                // Check if a valid station with passengers was found
+                if (nearestStationWithPassengers !== null) {
+                    // If found, update the current station to the nearest station with passengers
+                    this.updateCurrentStation(nearestStationWithPassengers);
+                } else {
+                    // If no valid station with passengers was found, log an error
+                    console.log(`No valid station found with passengers waiting for the train with ID ${this.id}.`);
+                }
+            }
+
+
+            calculateDestinationsCount() {
+                const destinationsCount = {};
+                this.travelers.forEach(traveler => {
+                    destinationsCount[traveler.destination] = (destinationsCount[traveler.destination] || 0) + 1;
+                });
+                return destinationsCount;
+            }
+
+            getMostPopularDestination(destinationsCount) {
+                return Object.keys(destinationsCount).reduce((a, b) => destinationsCount[a] > destinationsCount[b] ? a : b);
+            }
+
+            calculateDistanceToNextStation(destination) {
+                const currentStationLocation = stationList.find(station => station.id === this.currentStation).location;
+                const destinationLocation = stationList.find(station => station.id === destination).location;
+                return calculateDistance(currentStationLocation, destinationLocation);
+            }
+
+            updateCurrentStation(station) {
+                if (station !== null) {
+                    this.currentStation = station;
+                } else {
+                    console.log(`No valid station found for the train with ID ${this.id}.`);
+                }
+            }
+
+
+            findNearestStation(startStation, targetStation) {
+                // Find the nearest station between the start station and the target station.
+                const startLocation = stationList.find(station => station.id === startStation).location;
+                const targetLocation = stationList.find(station => station.id === targetStation).location;
+
+                const nearestStation = stationList.reduce((nearest, station) => {
+                    if (station.id !== startStation) {
+                        const distanceToStation = calculateDistance(startLocation, station.location);
+                        const distanceToTarget = calculateDistance(targetLocation, station.location);
+
+                        if (distanceToStation < nearest.distance && distanceToTarget < MAX_TRAIN_RANGE) {
+                            return { station: station.id, distance: distanceToStation };
+                        }
+                    }
+                    return nearest;
+                }, { station: null, distance: Number.MAX_VALUE });
+
+                return nearestStation.station;
+            }
+
+
+        }
+
+
+        class TrainStation {
+            constructor() {
+                this.id = generateUniqueId(12);
+                this.location = genStationLocation();
+                this.travelers = [];
+                this.inactiveTravelers = [];
+            }
+
+            addTraveler(traveler) {
+                this.travelers.push(traveler);
+            }
+
+            removeTraveler(traveler) {
+                const index = this.travelers.indexOf(traveler);
+                if (index !== -1) {
+                    this.travelers.splice(index, 1);
+                } else {
+                    console.error(`Traveler with ID ${traveler.id} not found at station ${this.id}.`);
+                }
+            }
+
+            addToStationList() {
+                stationList.push(this);
+            }
+        }
+
+        function genStations(numberOfStations) {
+            const stations = [];
+            for (let i = 0; i < numberOfStations; i++) {
+                const station = new TrainStation();
+                station.addToStationList(); // Add to stationList outside the constructor
+                stations.push(station);
+            }
+            return stations;
+        }
+
+        function pickStartStation() {
+            // Filter stations that have passengers waiting
+            const stationsWithPassengers = stationList.filter(station => station.travelers.length > 0);
+
+            if (stationsWithPassengers.length > 0) {
+                // If there are stations with passengers, randomly pick one
+                const randomIndex = Math.floor(Math.random() * stationsWithPassengers.length);
+                return stationsWithPassengers[randomIndex].id;
+            } else {
+                console.error("No stations with passengers were found!");
+                return null;
+            }
+        }
+
+        function pickRandomStation() {
+            // let emptyStationList = stationList.filter(s => s.travelers.length ==0);
+            // if(emptyStationList) {
+            //     return emptyStationList[Math.floor(Math.random() * (stationList.length - 1))]
+            // }                 
+            return stationList[Math.floor(Math.random() * (stationList.length - 1))];
+        }
+
+
+        function startMultipleTrainSimulations(numberOfTrains) {
+            stationList.length = 0;
+            stationList = genStations(MAX_STATIONS);
+            assignTravelersToStations(genTravelers(MAX_TRAVELERS));
+
+            const startStationIDs = Array.from({ length: numberOfTrains }, () => pickStartStation());
+            trainList = Train.createTrains(numberOfTrains, startStationIDs);
+
+            trainList.forEach(train => train.startSimulation());
+            console.log(stationList);
+        }
+
+        //---------------------------------------
+
+        const canvas = document.getElementById('trainCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // // Set canvas dimensions based on WORLD_WIDTH and WORLD_LENGTH
+        // canvas.width = WORLD_WIDTH;
+        // canvas.height = WORLD_LENGTH;
+
+
+        function drawTrails() {
+            trainList.forEach(t => {
+                let trail = t.trail;
+                if (trail.length > 1) {
+                    ctx.beginPath();
+                    ctx.strokeStyle = "black"; // Set the trail color based on train color
+
+                    let startStation = stationList.find(station => station.id === trail[0]);
+                    ctx.moveTo(startStation.location.x, startStation.location.y);
+
+                    for (let i = 1; i < trail.length; i++) {
+                        let station = stationList.find(s => s.id === trail[i]);
+                        ctx.quadraticCurveTo(
+                            startStation.location.x,
+                            startStation.location.y,
+                            (startStation.location.x + station.location.x) / 2,
+                            (startStation.location.y + station.location.y) / 2
+                        );
+                        startStation = station;
+                    }
+
+                    ctx.strokeStyle = this.trainColor;
+
+                    ctx.quadraticCurveTo(
+                        startStation.location.x,
+                        startStation.location.y,
+                        startStation.location.x,
+                        startStation.location.y
+                    );
+
+                    ctx.stroke();
+                }
+            });
+        }
+
+        // Function to draw the simulation on the canvas
+        function drawStations_old() {
+            stationList.forEach(station => {
+                ctx.beginPath();
+
+                let totalTravelers = station.travelers.length + station.inactiveTravelers.length;
+
+                // Calculate color based on the ratio of travelers and inactiveTravelers
+                let travelersRatio = station.travelers.length / totalTravelers;
+                let inactiveTravelersRatio = station.inactiveTravelers.length / totalTravelers;
+
+                // Set the color for the entire pie
+                ctx.fillStyle = `rgb(0, 0, 255)`;  // Blue for active travelers
+
+                // Draw the pie with two halves, one for travelers and one for inactiveTravelers
+                ctx.moveTo(station.location.x, station.location.y);
+                ctx.arc(station.location.x, station.location.y, 20, 0, 2 * Math.PI * travelersRatio, false);
+                ctx.fill();
+
+                ctx.fillStyle = `rgb(104, 107, 112)`;  // color for inactive travelers
+                ctx.moveTo(station.location.x, station.location.y);
+                ctx.arc(station.location.x, station.location.y, 20, 0, 2 * Math.PI * inactiveTravelersRatio, false);
+                ctx.fill();
+            });
+        }
+
+
+
+        function drawStations() {
+            stationList.forEach(station => {
+                ctx.beginPath();
+
+                let totalTravelers = station.travelers.length + station.inactiveTravelers.length;
+
+                // Calculate color based on the ratio of travelers and inactiveTravelers
+                let travelersRatio = station.travelers.length / totalTravelers;
+                let inactiveTravelersRatio = station.inactiveTravelers.length / totalTravelers;
+
+                // Calculate diameter based on totalTravelers (adjust the factor as needed)
+                let diameter = totalTravelers * 2;
+                // Set colors for the travelers and inactiveTravelers
+                let travelersColor = 'blue';
+                let inactiveTravelersColor = 'gray';
+
+                // Draw the pie with two halves, one for travelers and one for inactiveTravelers
+                ctx.fillStyle = travelersColor;
+                ctx.moveTo(station.location.x, station.location.y);
+                ctx.arc(station.location.x, station.location.y, diameter, 0, 2 * Math.PI * travelersRatio, false);
+                ctx.fill();
+
+                ctx.beginPath(); // Start a new path for the inactiveTravelers part
+                ctx.fillStyle = inactiveTravelersColor;
+                ctx.moveTo(station.location.x, station.location.y);
+                ctx.arc(station.location.x, station.location.y, diameter, 2 * Math.PI * travelersRatio, 2 * Math.PI * (travelersRatio + inactiveTravelersRatio), false);
+                ctx.fill();
+            });
+        }
+
+
+
+
+        function drawTrains() {
+            trainList.forEach(train => {
+                const currentStation = stationList.find(station => station.id === train.currentStation);
+                if (currentStation) {
+                    const trainWidth = 20;
+                    const trainHeight = 10;
+                    const trainX = currentStation.location.x - trainWidth / 2;
+                    const trainY = currentStation.location.y - trainHeight / 2;
+
+                    ctx.fillStyle = train.color;
+                    ctx.fillRect(trainX, trainY, trainWidth, trainHeight);
+                }
+            });
+        }
+
+
+        function drawSimulation() {
+            canvas.width = WORLD_WIDTH;
+            canvas.height = WORLD_LENGTH;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            drawStations();
+            drawTrains();
+
+            // You can add more drawing logic based on your simulation
+        }
+
+        function getRandomColor() {
+            const letters = '0123456789ABCDEF';
+            let color = '#';
+            for (let i = 0; i < 6; i++) {
+                color += letters[Math.floor(Math.random() * 16)];
+            }
+            return color;
+        }
+
+        function getTrainColor(existingTrains) {
+            let color;
+            do {
+                color = getRandomColor(canvasColor); // Pass the canvas color to exclude
+            } while (existingTrains.some(train => train.color === color));
+
+            return color;
+        }
+
+        function getRandomInt(min, max) {
+            return Math.floor(Math.random() * (max - min + 1) + min);
+        }
+
+
+    </script>
+    <script>
+        // Your train simulation code goes here
+        // ...
+        function stopSims() {
+            trainList.forEach(t => t.stopSimulation());
+        }
+
+        // Function to update constants based on form inputs
+        function updateConstants() {
+            simStartTime = Date.now();
+            stopSims();
+
+            WORLD_LENGTH = parseInt(document.getElementById('worldLength').value);
+            WORLD_WIDTH = parseInt(document.getElementById('worldWidth').value);
+            MIN_DISTANCE_STATION = parseInt(document.getElementById('minDistanceStation').value);
+            MAX_COL_COUNT = parseInt(document.getElementById('maxColCount').value);
+            MAX_TRAIN_RANGE = parseInt(document.getElementById('maxTrainRange').value);
+            MAX_TRAIN_CAPACITY = parseInt(document.getElementById('maxTrainCapacity').value);
+            SIM_STEP_TIME = parseInt(document.getElementById('simStepTime').value);
+            MAX_STATIONS = parseInt(document.getElementById('maxStations').value);
+            MAX_TRAVELERS = parseInt(document.getElementById('maxTravelers').value);
+            MAX_REPEAT_TRAIL = parseInt(document.getElementById('maxRepeatTrail').value);
+            TRAIL_LENGTH = parseInt(document.getElementById('trailLength').value);
+            MAX_TRAINS = parseInt(document.getElementById('maxTrains').value);
+
+            // Call a function to redraw the simulation with updated constants
+            startMultipleTrainSimulations(MAX_TRAINS);
+
+
+        }
+
+        // Rest of your existing script
+        // ...
+    </script>
+</body>
+
+</html>
