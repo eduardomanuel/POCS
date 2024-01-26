@@ -5,9 +5,34 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Train Simulation Visualization</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+
+    <style>
+        #passengerInfo {
+            font-family: 'Press Start 2P', cursive;
+            /* Use a retro font, such as Press Start 2P */
+            background-color: #000;
+            /* Background color */
+            color: #0F0;
+            /* Text color */
+            padding: 10px;
+            /* Padding for content */
+            border: 2px solid #0F0;
+            /* Border color */
+            border-radius: 5px;
+            /* Border radius for rounded corners */
+            width: 550px;
+            /* Set a fixed width */
+            text-align: left;
+            /* Center the text */
+            margin: 10px;
+            /* Add margin for spacing */
+        }
+    </style>
 
     <style>
         body {
+            background-color: #312e2e;
             font-family: Arial, sans-serif;
             margin: 10px;
             display: block;
@@ -76,11 +101,15 @@
         }
 
         #configForm label {
+            color:#020202;
             margin-bottom: 8px;
             font-weight: bold;
         }
 
         #configForm input {
+            color: #0F0;
+            background-color: #000;
+            font-family: 'Courier New', Courier, monospace;
             width: calc(100% - 12px);
             /* Adjust the width as needed */
             padding: 6px;
@@ -106,6 +135,9 @@
 
 <body>
     <canvas id="trainCanvas" id="" width="400" height="400"></canvas>
+    <!-- Add this div to your HTML -->
+    <div id="passengerInfo"></div>
+
     <table>
         <tr>
             <td>
@@ -211,6 +243,16 @@
         let simStartTime = 0;
         let simElapsedTime = 0;
 
+        function updatePassengerInfo() {
+            const passengerInfoDiv = document.getElementById('passengerInfo');
+
+            // Calculate total passengers and inactive passengers
+            const totalPassengers = stationList.reduce((total, station) => total + station.travelers.length, 0);
+            const totalInactivePassengers = stationList.reduce((total, station) => total + station.inactiveTravelers.length, 0);
+
+            // Update the content of the passengerInfo div
+            passengerInfoDiv.innerText = `Passengers traveling: ${totalPassengers}\nPassengers at destination: ${totalInactivePassengers}`;
+        }
 
         function generateUniqueId(length) {
             const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -711,39 +753,36 @@
 
 
         function drawTrails() {
-            trainList.forEach(t => {
-                let trail = t.trail;
-                if (trail.length > 1) {
-                    ctx.beginPath();
-                    ctx.strokeStyle = "black"; // Set the trail color based on train color
+            ctx.save();
+            ctx.beginPath();  // Begin the path outside the loop
 
-                    let startStation = stationList.find(station => station.id === trail[0]);
-                    ctx.moveTo(startStation.location.x, startStation.location.y);
+            trainList.forEach(train => {
+                const trail = train.trail;
+
+                if (trail.length > 1) {
+                    ctx.strokeStyle = train.color;
 
                     for (let i = 1; i < trail.length; i++) {
-                        let station = stationList.find(s => s.id === trail[i]);
-                        ctx.quadraticCurveTo(
-                            startStation.location.x,
-                            startStation.location.y,
-                            (startStation.location.x + station.location.x) / 2,
-                            (startStation.location.y + station.location.y) / 2
-                        );
-                        startStation = station;
+                        const startStation = stationList.find(station => station.id === trail[i - 1]);
+                        const endStation = stationList.find(station => station.id === trail[i]);
+
+                        if (JSON.stringify(startStation.location) === JSON.stringify(endStation.location)) {
+                            console.log("start and end station have the same location!  skipping");
+                            continue; // move on to the next set of stations
+                        }
+
+                        ctx.moveTo(startStation.location.x, startStation.location.y);
+                        ctx.lineTo(endStation.location.x, endStation.location.y);
                     }
-
-                    ctx.strokeStyle = this.trainColor;
-
-                    ctx.quadraticCurveTo(
-                        startStation.location.x,
-                        startStation.location.y,
-                        startStation.location.x,
-                        startStation.location.y
-                    );
 
                     ctx.stroke();
                 }
             });
+
+            ctx.closePath();  // End the path outside the loop
+            ctx.restore();
         }
+
 
         // Function to draw the simulation on the canvas
         function drawStations_old() {
@@ -784,7 +823,7 @@
                 let inactiveTravelersRatio = station.inactiveTravelers.length / totalTravelers;
 
                 // Calculate diameter based on totalTravelers (adjust the factor as needed)
-                let diameter = totalTravelers * 2;
+                let diameter = (totalTravelers > 2) ? totalTravelers : 2;
                 // Set colors for the travelers and inactiveTravelers
                 let travelersColor = 'blue';
                 let inactiveTravelersColor = 'gray';
@@ -829,6 +868,7 @@
 
             drawStations();
             drawTrains();
+            updatePassengerInfo();
 
             // You can add more drawing logic based on your simulation
         }
