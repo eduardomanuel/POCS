@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        #gameContainer {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+        }
+
+        canvas {
+            border: 1px solid #000;
+            margin: 10px;
+        }
+
+        button {
+            margin: 5px;
+            padding: 10px 15px;
+            font-size: 16px;
+            background-color: #4CAF50;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        #boardSizeDropdown {
+            margin: 10px;
+            font-size: 16px;
+        }
+    </style>
+    <title>Go Game</title>
+</head>
+
+<body>
+    <div id="gameContainer">
+        <label for="boardSizeDropdown">Select Board Size:</label>
+        <select id="boardSizeDropdown">
+            <option value="9">9x9</option>
+            <option value="13">13x13</option>
+            <option value="19" selected>19x19</option>
+        </select>
+        <canvas id="goBoard" width="600" height="600"></canvas>
+        <button id="undoButton">Undo</button>
+        <button id="resetButton">Reset Board</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('goBoard');
+        const ctx = canvas.getContext('2d');
+        let gridSize = 19; // Default size of the Go board
+        let bezelSize = 10; // Adjust the bezel size as needed
+        let cellSize = (canvas.width - 2 * bezelSize) / (gridSize - 1); // Adjusted for intersections and bezels
+
+
+        const undoButton = document.getElementById('undoButton');
+        const resetButton = document.getElementById('resetButton');
+        const boardSizeDropdown = document.getElementById('boardSizeDropdown');
+
+        // Event listener for the "Undo" button
+        undoButton.addEventListener('click', function () {
+            if (moveHistory.length > 0) {
+                board = moveHistory.pop();
+                drawBoard();
+                currentPlayer = 3 - currentPlayer; // Switch player back to the previous one
+            }
+        });
+
+        // Function to validate a move
+        function isValidMove(x, y, currentPlayer) {
+            // Define a margin to prevent placing stones at the very edge
+            const margin = 0;
+
+            // Check if the move is within the bounds of the board with a margin
+            if (x < margin || x >= gridSize - margin || y < margin || y >= gridSize - margin) {
+                alert("Illegal move: Stones must be placed away from the edge!");
+                return false;
+            }
+
+            // Check if the intersection is empty
+            if (board[y][x] !== 0) {
+                alert("Illegal move: Intersection already occupied!");
+                return false;
+            }
+
+            // Simulate the move to check for suicide
+            const tempBoard = JSON.parse(JSON.stringify(board)); // Create a copy of the board
+            tempBoard[y][x] = currentPlayer;
+
+            // Check for suicide
+            if (!hasLiberties(tempBoard, x, y)) {
+                alert("Illegal move: Suicide!");
+                return false;
+            }
+
+            // Check for Ko rule
+            if (isKo(tempBoard)) {
+                alert("Illegal move: Ko rule violation!");
+                return false;
+            }
+
+            // The move is valid
+            return true;
+        }
+
+
+        // Function to check if a stone has liberties (avoids suicide)
+        function hasLiberties(tempBoard, x, y) {
+            // Check adjacent intersections
+            const neighbors = [
+                [x - 1, y],
+                [x + 1, y],
+                [x, y - 1],
+                [x, y + 1]
+            ];
+
+            for (const [nx, ny] of neighbors) {
+                if (nx >= 0 && nx < gridSize && ny >= 0 && ny < gridSize && tempBoard[ny][nx] === 0) {
+                    return true; // At least one liberty found
+                }
+            }
+
+            // Check if any adjacent stone of the same color has liberties
+            for (const [nx, ny] of neighbors) {
+                if (nx >= 0 && nx < gridSize && ny >= 0 && ny < gridSize && tempBoard[ny][nx] === tempBoard[y][x] && hasLiberties(tempBoard, nx, ny)) {
+                    return true; // At least one stone has liberties
+                }
+            }
+
+            return false; // No liberties found
+        }
+
+        // Function to check for Ko rule
+        function isKo(tempBoard) {
+            // Compare the current board with previous board states in the move history
+            for (const state of moveHistory) {
+                if (isEqual(state, tempBoard)) {
+                    return true; // Ko rule violation
+                }
+            }
+
+            return false; // No Ko rule violation
+        }
+
+        // Function to check if two arrays are equal
+        function isEqual(arr1, arr2) {
+            return JSON.stringify(arr1) === JSON.stringify(arr2);
+        }
+
+        function updateBoardSize() {
+            const hasPieces = board.some(row => row.includes(1) || row.includes(2));
+
+            if (hasPieces) {
+                const confirmed = window.confirm('Changing the board size will reset the board. Are you sure you want to proceed?');
+                if (!confirmed) {
+                    boardSizeDropdown.value = gridSize.toString(); // Reset dropdown to the previous value
+                    return;
+                }
+            }
+
+            gridSize = parseInt(boardSizeDropdown.value);
+            cellSize = (canvas.width - 2 * bezelSize) / (gridSize - 1);
+            resetBoard();
+        }
+
+
+        // Event listener for board size dropdown change
+        boardSizeDropdown.addEventListener('change', updateBoardSize);
+
+        // Function to draw the grid lines with a bezel
+        function drawGrid() {
+            // Draw the bezel
+            ctx.fillStyle = '#D2B48C';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw the grid lines inside the bezel
+            ctx.beginPath();
+            for (let i = 0; i < gridSize; i++) {
+                // Vertical lines
+                const x = i * cellSize + bezelSize;
+                ctx.moveTo(x, bezelSize);
+                ctx.lineTo(x, canvas.height - bezelSize);
+
+                // Horizontal lines
+                const y = i * cellSize + bezelSize;
+                ctx.moveTo(bezelSize, y);
+                ctx.lineTo(canvas.width - bezelSize, y);
+            }
+            ctx.stroke();
+        }
+
+        // Function to draw a piece on the board
+        function drawPiece(x, y, color) {
+            const radius = cellSize / 2 - 2;
+            const centerX = x * cellSize + bezelSize;
+            const centerY = y * cellSize + bezelSize;
+
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+            ctx.fillStyle = color;
+            ctx.fill();
+            ctx.stroke();
+        }
+
+        // ... (rest of your code)
+
+
+
+        // Function to reset the board
+        function resetBoard() {
+            board = Array.from({ length: gridSize }, () => Array(gridSize).fill(0));
+            moveHistory = [];
+            drawBoard();
+            currentPlayer = 1; // Reset to the starting player
+        }
+
+
+        // Function to draw the entire board with a bezel
+        function drawBoard() {
+            const bezelSize = 10; // Adjust the bezel size as needed
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw the bezel
+            ctx.fillStyle = '#D2B48C'; // Use a color for the bezel
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw the grid lines inside the bezel
+            drawGrid();
+
+            // Draw stones inside the bezel
+            for (let y = 0; y < gridSize; y++) {
+                for (let x = 0; x < gridSize; x++) {
+                    if (board[y][x] !== 0) {
+                        drawPiece(x, y, board[y][x] === 1 ? 'black' : 'white');
+                    }
+                }
+            }
+        }
+        // Rest of the code...
+
+        // Usage example in your move handling logic
+        canvas.addEventListener('click', function (event) {
+            const mouseX = event.clientX - canvas.getBoundingClientRect().left;
+            const mouseY = event.clientY - canvas.getBoundingClientRect().top;
+
+            // Calculate the grid position
+            const gridX = Math.round(mouseX / cellSize);
+            const gridY = Math.round(mouseY / cellSize);
+
+            // Example: Alternate between black and white pieces
+            if (isValidMove(gridX, gridY, currentPlayer)) {
+                moveHistory.push(JSON.parse(JSON.stringify(board))); // Save the current board state for undo
+                board[gridY][gridX] = currentPlayer;
+                drawPiece(gridX, gridY, currentPlayer === 1 ? 'black' : 'white');
+                currentPlayer = 3 - currentPlayer; // Switch player
+            }
+        });
+
+        // Initialize the Go board
+        let board = Array.from({ length: gridSize }, () => Array(gridSize).fill(0));
+        let moveHistory = []; // Array to store board states for undo
+        let currentPlayer = 1;
+
+        // Initial setup - draw the grid
+        drawGrid();
+
+    </script>
+</body>
+
+</html>
