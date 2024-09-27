@@ -1,0 +1,57 @@
+function playSound() {
+    playButton.disabled = true;
+
+    const frequency = getFrequencyFromSelect(noteSelect.value); // Extract frequency correctly
+    const duration = parseFloat(durationInput.value);
+    const attack = parseFloat(attackSlider.value);
+    const decay = parseFloat(decaySlider.value);
+    const sustain = parseFloat(sustainSlider.value);
+    const release = parseFloat(releaseSlider.value);
+
+    // Check if frequency is a valid number
+    if (isNaN(frequency) || frequency <= 0) {
+        console.error("Invalid frequency value:", frequency);
+        playButton.disabled = false; // Re-enable the button on error
+        return; // Exit the function if frequency is invalid
+    }
+
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    const analyser = audioContext.createAnalyser();
+    const reverbNode = audioContext.createGain(); // Use GainNode for reverb
+    const delayNode = audioContext.createDelay();
+
+    oscillator.type = waveformSelect.value;
+    oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime); // Set frequency correctly
+    oscillator.connect(gainNode);
+    gainNode.connect(analyser);
+    analyser.connect(audioContext.destination);
+
+    // Setup envelope
+    setupEnvelope(gainNode, attack, decay, sustain, release, duration);
+
+    // Setup effects if enabled
+    if (reverbToggle.checked) {
+        setupReverb(reverbNode, gainNode);
+    } else {
+        gainNode.connect(audioContext.destination);
+    }
+
+    if (delayToggle.checked) {
+        setupDelay(delayNode, gainNode);
+    } else {
+        gainNode.connect(audioContext.destination);
+    }
+
+    oscillator.start();
+    oscillator.stop(audioContext.currentTime + duration + release);
+    showPlayingIndicator(duration, release);
+    outputParameters();
+}
+
+// Utility function to extract frequency from the note select value
+function getFrequencyFromSelect(selectedValue) {
+    const frequencyMatch = selectedValue.match(/([0-9.]+) Hz/); // Regex to capture the frequency number
+    return frequencyMatch ? parseFloat(frequencyMatch[1]) : NaN; // Return the frequency as a float or NaN if not found
+}
